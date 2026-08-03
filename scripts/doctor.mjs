@@ -168,7 +168,7 @@ record(
   buildFresh ? "ok" : "error",
   buildFresh
     ? "Compiled MCP build is present and newer than its runtime source inputs."
-    : "Compiled MCP build is missing or stale; run npm run build, then restart/reconnect the Codex MCP server.",
+    : "Compiled MCP build is missing or stale; run npm run build, then restart or reconnect the MCP server in your client.",
   {
     buildInfoFile,
     buildMtimeMs: buildInfoStat?.mtimeMs ?? null,
@@ -293,7 +293,7 @@ record(
   "mcp-heartbeat",
   clientRunningAndFresh ? "ok" : "warning",
   clientStatus === null
-    ? "MCP sidebar heartbeat is missing; restart or reconnect the Codex MCP server."
+    ? "MCP sidebar heartbeat is missing; restart or reconnect the MCP server in your client."
     : `MCP ${lineValue(clientStatus, "version") ?? "?"}, state ${
         lineValue(clientStatus, "state") ?? "unknown"
   }.`,
@@ -321,7 +321,7 @@ record(
     ? "A fresh running MCP process is required to verify its capability fingerprint."
     : capabilityMatches && runningBuildMatches
       ? "Running MCP build and capabilities match the current compiled build."
-      : "Running MCP build or capabilities are stale or unknown; restart/reconnect the Codex MCP server.",
+      : "Running MCP build or capabilities are stale or unknown; restart or reconnect the MCP server in your client.",
   {
     expectedBuildFingerprint,
     runningBuildFingerprint: runningBuildFingerprint ?? null,
@@ -419,16 +419,6 @@ if (suppliedTarget) {
     "Pass --target or set SYNTHV_SCRIPTS_DIR to verify installed script versions.",
   );
 }
-
-const codexConfigPath = path.join(os.homedir(), ".codex", "config.toml");
-const codexConfig = await readText(codexConfigPath);
-record(
-  "codex-config",
-  codexConfig?.includes(SERVER_NAME) ? "ok" : "warning",
-  codexConfig?.includes(SERVER_NAME)
-    ? "Codex config contains a synthv-agent-bridge entry."
-    : `No synthv-agent-bridge entry was found in ${codexConfigPath}.`,
-);
 
 try {
   await access(ipcDirectory);

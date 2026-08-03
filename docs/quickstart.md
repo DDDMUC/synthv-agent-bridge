@@ -6,30 +6,30 @@ This guide takes a new user from cloning the repository to the first guarded
 Synthesizer V edit. For protocol details and the complete action catalog, see
 the main [README](../README.md).
 
-## 1. Clone the project and open it in Codex
+## 1. Clone the project and open it in an Agent
 
 ```bash
-git clone https://github.com/zhoupengjie/synthv-agent-bridge.git
+git clone https://github.com/SynthVCopilot/synthv-agent-bridge.git
 cd synthv-agent-bridge
 ```
 
-Open the cloned `synthv-agent-bridge` folder in the Codex app, Codex CLI, or a
-Codex-enabled editor.
+Open the cloned `synthv-agent-bridge` folder in any coding Agent that can run
+shell commands and connect to local stdio MCP servers.
 
-You can ask Codex to perform the remaining setup:
+You can ask the Agent to perform the remaining setup:
 
 ```text
 Set up this SynthV Agent Bridge project. Check whether Node.js 20.10 or later is
 available. If it is missing or too old, install a suitable Node.js LTS release
 with the system package manager, asking for permission when required. Then
 install the locked dependencies, build the project, install the SynthV scripts
-into the scripts directory I provide, verify the repository's project-scoped
-MCP configuration, and run the project doctor.
+into the scripts directory I provide, register the built server as a local stdio
+MCP server, and run the project doctor.
 ```
 
-Codex can run the environment checks and package-manager commands, but an
+The Agent can run the environment checks and package-manager commands, but an
 operating-system installation may need network access, administrator approval,
-or a terminal/Codex restart before the new `node` command is visible.
+or a terminal or client restart before the new `node` command is visible.
 
 ## 2. Check Node.js and build
 
@@ -43,7 +43,7 @@ npm ci
 npm run build
 ```
 
-If Node.js is missing, ask Codex to install an LTS release. Typical manual
+If Node.js is missing, ask the Agent to install an LTS release. Typical manual
 fallbacks are:
 
 ```powershell
@@ -56,7 +56,7 @@ winget install --id OpenJS.NodeJS.LTS -e
 brew install node
 ```
 
-After a new Node.js installation, restart the terminal or Codex if
+After a new Node.js installation, restart the terminal or the client if
 `node --version` still uses the old environment.
 
 ## 3. Install the SynthV scripts
@@ -80,21 +80,21 @@ C:\Users\<you>\AppData\Roaming\Dreamtonics\Synthesizer V Studio 2\scripts
 Use the path opened by SynthV rather than assuming the example is correct for
 your machine.
 
-## 4. Load the project-scoped MCP configuration
+## 4. Register the MCP server
 
-The repository already contains `.codex/config.toml`:
+Register the built server with your MCP client as a local **stdio** server:
 
-```toml
-[mcp_servers.synthv-agent-bridge]
-command = "node"
-args = ["dist/src/cli.js"]
-startup_timeout_sec = 120
+```
+node /absolute/path/to/synthv-agent-bridge/dist/src/cli.js
 ```
 
-No user-level MCP registration or absolute installation path is required. Trust
-and open the repository root in Codex, complete the build, then restart Codex
-or start a new task so it loads the project configuration. Codex ignores
-project-scoped configuration for untrusted projects.
+Allow at least 120 s for the first launch. Prefer a project-scoped registration
+when the client supports one; it keeps the registration to this project instead
+of a global configuration file. Complete the build first, then restart or
+reconnect the server so the client loads it.
+
+Configuration shapes for JSON and TOML clients are in
+[examples/mcp-client-config.md](../examples/mcp-client-config.md).
 
 ## 5. Rescan and start the Bridge
 
@@ -111,7 +111,7 @@ or all running scripts are aborted.
 
 ## 6. Verify the connection
 
-In a Codex task with the MCP server enabled, ask:
+In an Agent session with the MCP server enabled, ask:
 
 ```text
 Check the SynthV Bridge status, then read the current project information.
@@ -133,18 +133,18 @@ npm run doctor -- --target "/path/to/Synthesizer V Studio 2/scripts"
 ```
 
 If the Bridge is healthy but the MCP heartbeat is missing, restart or reconnect
-the Codex task.
+the Agent session.
 
 ## Optional: run the guided Demo
 
-After the first healthy connection, Codex offers the bundled example. Start it
-with:
+After the first healthy connection, the Agent offers the bundled example. Start
+it with:
 
 ```text
 Run the Twinkle Star demo.
 ```
 
-Codex prints five short stage headings, creates one isolated 42-note non-main
+The Agent prints five short stage headings, creates one isolated 42-note non-main
 Group after existing project content, and never modifies existing notes. After
 score creation, select that Demo Group and select or assign its Vocal, then
 attach the complete Vocal Mode panel or type every singing style exactly as
@@ -207,7 +207,7 @@ project changes. A disabled Restart Bridge button means the panel has not confir
 Bridge; start it from **Scripts → SynthV Agent Bridge → Start SynthV Agent
 Bridge**. Its permanent warning explains that Abort All Running Scripts freezes
 the displayed states. Continue giving requests and reviewing plans in the
-Codex task.
+Agent session.
 
 ## 9. Vocal Mode edits
 
@@ -221,11 +221,11 @@ Before the first Vocal Mode edit, select the intended Note Group and select or
 assign its singer. The mode names cannot appear before a singer is selected.
 Then either:
 
-- tell Codex every exact Vocal Mode name shown in the panel, preserving spelling
-  and capitalization; or
+- tell the Agent every exact Vocal Mode name shown in the panel, preserving
+  spelling and capitalization; or
 - attach a screenshot showing the complete Vocal Mode panel.
 
-After this first identification, Codex can reuse the same list for later edits
+After this first identification, the Agent can reuse the same list for later edits
 with that singer. Provide the list or a new screenshot again after changing
 singers.
 
@@ -235,12 +235,12 @@ For later sessions:
 
 1. Open the SynthV project and save a working copy.
 2. Start **SynthV Agent Bridge**.
-3. Open or reconnect a Codex task that has the MCP server enabled.
-4. Select the intended target and tell Codex the result you want. Mention
+3. Open or reconnect an Agent session that has the MCP server enabled.
+4. Select the intended target and tell the Agent the result you want. Mention
    anything that must remain unchanged. If the request uses Vocal Modes, also
    select the Vocal and provide its complete panel screenshot or exact mode
    names.
-5. Review the small plan in Codex, apply it, and listen to the result.
+5. Review the small plan with the Agent, apply it, and listen to the result.
 
 ## Updating an existing installation
 
@@ -264,8 +264,8 @@ already-rendered panel layout unchanged.
 | Symptom | Action |
 |---|---|
 | Bridge status (`B`) is offline | Run **Start SynthV Agent Bridge** in SynthV. |
-| MCP status (`M`) is offline | Restart or reconnect the Codex task. |
+| MCP status (`M`) is offline | Restart or reconnect the Agent session. |
 | Side panel is missing or outdated | Close and reopen SynthV, then start the Bridge. Rescan alone may not redraw an already-loaded panel. |
-| `node` or `npm` is not found | Ask Codex to install Node.js LTS, then restart the terminal/Codex. |
+| `node` or `npm` is not found | Ask the Agent to install Node.js LTS, then restart the terminal or client. |
 | A write returns `STALE_*` | Read only the target again; do not retry the old payload. |
 | A write returns `SYNTHV_SESSION_CHANGED` | SynthV or the Bridge restarted; cached contexts were cleared automatically. Read the target again, then continue from the fresh context. |

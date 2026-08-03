@@ -6,28 +6,28 @@
 Synthesizer V 调音修改。协议细节和完整功能列表请参阅项目
 [README](../README.md)。
 
-## 1. 拉取项目并用 Codex 打开
+## 1. 拉取项目并用 Agent 打开
 
 ```bash
-git clone https://github.com/zhoupengjie/synthv-agent-bridge.git
+git clone https://github.com/SynthVCopilot/synthv-agent-bridge.git
 cd synthv-agent-bridge
 ```
 
-在 Codex 桌面应用、Codex CLI 或支持 Codex 的编辑器中打开克隆后的
-`synthv-agent-bridge` 文件夹。
+用任意一个能执行 shell 命令、并能连接本地 stdio MCP 服务器的编码 Agent
+打开克隆后的 `synthv-agent-bridge` 文件夹。
 
-接下来的安装可以直接交给 Codex：
+接下来的安装可以直接交给 Agent：
 
 ```text
 请安装并配置这个 SynthV Agent Bridge 项目。先检查是否有 Node.js 20.10
 或更高版本；如果没有或版本过低，请使用系统包管理器安装合适的 Node.js
 LTS，必要时向我申请权限。然后使用锁文件安装依赖、构建项目，把 SynthV
-脚本安装到我提供的脚本目录，检查仓库自带的项目级 MCP 配置，最后运行
-项目诊断。
+脚本安装到我提供的脚本目录，把构建产物注册为本地 stdio MCP 服务器，
+最后运行项目诊断。
 ```
 
-Codex 可以执行环境检查和包管理器命令，但操作系统级安装可能需要联网、
-管理员授权，安装后也可能需要重启终端或 Codex，新的 `node` 命令才会生效。
+Agent 可以执行环境检查和包管理器命令，但操作系统级安装可能需要联网、
+管理员授权，安装后也可能需要重启终端或客户端，新的 `node` 命令才会生效。
 
 ## 2. 检查 Node.js 并构建
 
@@ -41,7 +41,7 @@ npm ci
 npm run build
 ```
 
-如果缺少 Node.js，可以让 Codex 安装 LTS 版本。手动安装的常见备用命令：
+如果缺少 Node.js，可以让 Agent 安装 LTS 版本。手动安装的常见备用命令：
 
 ```powershell
 # Windows
@@ -54,7 +54,7 @@ brew install node
 ```
 
 新安装 Node.js 后，如果 `node --version` 仍然读取旧环境，请重启终端或
-Codex。
+客户端。
 
 ## 3. 安装 SynthV 脚本
 
@@ -76,20 +76,20 @@ C:\Users\<用户名>\AppData\Roaming\Dreamtonics\Synthesizer V Studio 2\scripts
 
 请以 SynthV 实际打开的目录为准，不要直接假定示例路径适用于当前电脑。
 
-## 4. 加载项目级 MCP 配置
+## 4. 注册 MCP 服务器
 
-仓库已经包含 `.codex/config.toml`：
+把构建产物注册到 MCP 客户端，作为本地 **stdio** 服务器：
 
-```toml
-[mcp_servers.synthv-agent-bridge]
-command = "node"
-args = ["dist/src/cli.js"]
-startup_timeout_sec = 120
+```
+node /absolute/path/to/synthv-agent-bridge/dist/src/cli.js
 ```
 
-不需要写入用户级 MCP 配置，也不需要填写绝对安装路径。请在 Codex 中信任
-并打开仓库根目录，完成构建后重启 Codex 或新建任务，让 Codex 加载项目
-配置。未被信任的项目不会加载项目级配置。
+首次启动请预留至少 120 秒。客户端支持项目级注册时优先使用，这样注册只
+对当前项目生效，不必写入全局配置文件。请先完成构建，再重启或重连该服务器
+让客户端加载它。
+
+JSON 与 TOML 客户端的配置写法见
+[examples/mcp-client-config.md](../examples/mcp-client-config.md)。
 
 ## 5. 重新扫描并启动 Bridge
 
@@ -105,7 +105,7 @@ startup_timeout_sec = 120
 
 ## 6. 验证连接
 
-在已启用 MCP 的 Codex 任务中输入：
+在已启用 MCP 的 Agent 会话中输入：
 
 ```text
 检查 SynthV Bridge 状态，然后读取当前工程信息。
@@ -126,17 +126,17 @@ startup_timeout_sec = 120
 npm run doctor -- --target "/Synthesizer V Studio 2/脚本目录"
 ```
 
-如果 Bridge 正常，但 MCP 心跳缺失，请重启或重新连接 Codex 任务。
+如果 Bridge 正常，但 MCP 心跳缺失，请重启或重新连接 Agent 会话。
 
 ## 可选：运行引导式 Demo
 
-第一次连接正常后，Codex 会提供内置示例。输入：
+第一次连接正常后，Agent 会提供内置示例。输入：
 
 ```text
 运行《小星星》Demo。
 ```
 
-Codex 会打印五个简短阶段小标题，在现有工程内容之后创建一个包含 42 个
+Agent 会打印五个简短阶段小标题，在现有工程内容之后创建一个包含 42 个
 音符的独立非主 Group，并且不修改已有音符。曲谱创建后，请选择这个 Demo
 Group，为它选择或分配 Vocal，再发送完整唱法（Vocal Mode）面板截图，或
 准确输入面板中的全部唱法。由于官方 API 限制，这一次交接无法省略；之后的调音、
@@ -193,7 +193,7 @@ SynthV 撤销记录。需要撤销时，先点击主编辑区再按 **Ctrl+Z**�
 Bridge 在线；请从 **脚本 → SynthV Agent Bridge → Start SynthV Agent
 Bridge** 启动。面板会固定提示：中止所有运行脚本后，状态会停留在最后
 一次结果，状态不可信；建议使用 Stop SynthV Agent Bridge 单独停止
-Bridge。所有请求和方案审核继续在 Codex 任务中进行。
+Bridge。所有请求和方案审核继续在 Agent 会话中进行。
 
 ## 9. 唱法（Vocal Mode）修改
 
@@ -206,7 +206,7 @@ SynthV 脚本 API 无法读取当前歌手身份，也无法列出尚未启用�
 第一次修改唱法前，请先选择目标音符组，再为该音符组选择歌手；没有选择
 歌手时不会出现唱法名称。然后选择一种方式：
 
-- 把面板中显示的所有唱法名称完整告诉 Codex，并保留原有拼写和大小写；或
+- 把面板中显示的所有唱法名称完整告诉 Agent，并保留原有拼写和大小写；或
 - 提供一张包含完整唱法（Vocal Mode）面板的截图。
 
 如果没有合适的音符组或暂时看不到唱法面板，可由你或 Agent 在工程
@@ -214,7 +214,7 @@ SynthV 脚本 API 无法读取当前歌手身份，也无法列出尚未启用�
 选择歌手，使唱法参数显示出来；随后截图完整唱法面板或准确输入全部唱法
 名称，再继续调音。
 
-完成首次识别后，只要没有更换歌手，Codex 就可以继续使用同一份唱法名称
+完成首次识别后，只要没有更换歌手，Agent 就可以继续使用同一份唱法名称
 列表。更换歌手后，必须重新截图新 Vocal 的完整唱法面板，或重新输入其
 全部准确唱法名称，不能沿用上一个 Vocal 的列表。
 
@@ -224,10 +224,10 @@ SynthV 脚本 API 无法读取当前歌手身份，也无法列出尚未启用�
 
 1. 打开 SynthV 工程并保存一个工作副本。
 2. 启动 **SynthV Agent Bridge**。
-3. 打开或重新连接已启用 MCP 的 Codex 任务。
-4. 选择目标并告诉 Codex 想要的效果；有不能修改的内容也请一并说明。如果
+3. 打开或重新连接已启用 MCP 的 Agent 会话。
+4. 选择目标并告诉 Agent 想要的效果；有不能修改的内容也请一并说明。如果
    请求会使用唱法，再选择 Vocal，并提供完整面板截图或准确唱法名称。
-5. 在 Codex 中审核小型方案，应用后试听结果。
+5. 与 Agent 一起审核小型方案，应用后试听结果。
 
 ## 更新已有安装
 
@@ -250,8 +250,8 @@ SynthV，再启动 Bridge；单独重新扫描可能不会重绘已经加载的�
 | 现象 | 处理方法 |
 |---|---|
 | Bridge 状态 `B` 离线 | 在 SynthV 中运行 **Start SynthV Agent Bridge**。 |
-| MCP 状态 `M` 离线 | 重启或重新连接 Codex 任务。 |
+| MCP 状态 `M` 离线 | 重启或重新连接 Agent 会话。 |
 | 侧边栏缺失或版本不对 | 关闭并重新打开 SynthV，然后启动 Bridge；单独重新扫描可能不会重绘已经加载的侧边栏。 |
-| 找不到 `node` 或 `npm` | 让 Codex 安装 Node.js LTS，然后重启终端或 Codex。 |
+| 找不到 `node` 或 `npm` | 让 Agent 安装 Node.js LTS，然后重启终端或客户端。 |
 | 写入返回 `STALE_*` | 只重新读取目标，不要重复提交旧请求。 |
 | 写入返回 `SYNTHV_SESSION_CHANGED` | SynthV 或 Bridge 已重启，缓存 Context 已自动清除。重新读取目标后，用新 Context 继续。 |

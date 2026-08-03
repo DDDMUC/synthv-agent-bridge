@@ -3,9 +3,9 @@
 [English](twinkle-star-demo.md) |
 [简体中文](twinkle-star-demo_cn.md)
 
-The bundled demo lets a first-time user ask Codex to create and tune a complete
+The bundled demo lets a first-time user ask the Agent to create and tune a complete
 Mandarin version of **Twinkle Star** with the existing compact MCP surface.
-It is a guided one-command workflow: once Vocal onboarding is complete, Codex
+It is a guided one-command workflow: once Vocal onboarding is complete, the Agent
 handles score creation, tuning, verification, and playback.
 
 Start it with:
@@ -21,7 +21,7 @@ logic in the TypeScript or Lua layers.
 
 ## What the user sees
 
-Codex prints one short heading before each stage:
+The Agent prints one short heading before each stage:
 
 1. **Demo 1/5: Check the connection and safe location**
 2. **Demo 2/5: Create an isolated Twinkle Star Note Group**
@@ -29,14 +29,14 @@ Codex prints one short heading before each stage:
 4. **Demo 4/5: Write full-song tuning and pitch curves**
 5. **Demo 5/5: Reread, verify, and start playback**
 
-Each heading may have one concise status sentence. Codex does not print raw MCP
+Each heading may have one concise status sentence. The Agent does not print raw MCP
 payloads or repeat the full first-use checklist after a preview.
 
 ## Guided workflow
 
-1. Codex verifies the Bridge and reads only enough project structure to choose
+1. The Agent verifies the Bridge and reads only enough project structure to choose
    a harmless position after existing project content.
-2. After explicit user consent, Codex uses `add_notes` with
+2. After explicit user consent, the Agent uses `add_notes` with
    `grouping: "ensureNonMain"` to create one non-main Group named
    `SynthV Agent Demo - 小星星`. It does not edit existing notes, lyrics,
    timing, automation, tracks, or Groups.
@@ -45,13 +45,13 @@ payloads or repeat the full first-use checklist after a preview.
    style exactly as shown.
 4. This pause is required because SynthV's official scripting API cannot read
    the current Vocal identity or enumerate untouched default-only Vocal Mode
-   names. Codex must not guess or skip it.
-5. Codex rereads the Demo Group, maps only the supplied exact style names to
+   names. The Agent must not guess or skip it.
+5. The Agent rereads the Demo Group, maps only the supplied exact style names to
    the bundled gentle/bright/childlike intent, reads current Automation
    `definition.range` values, and applies one `apply_group_tuning` batch. The
    Demo template puts `automation` and `pitchAnalysis` in the top-level
    `sv_query.include` projection so their fresh Guards remain in the Context.
-6. Codex rereads the entire Demo Group and verifies 42 notes, five intentional
+6. The Agent rereads the entire Demo Group and verifies 42 notes, five intentional
    phrase gaps, zero overlaps, retained Vocal Modes and phonemes, and all five
    automation curves before starting loop playback.
 

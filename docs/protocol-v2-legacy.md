@@ -308,7 +308,7 @@ the MCP v2 surface, the default projection contains only `trackIndex`,
 `groupIndex`, documented `parameters`, `vocalModes`, and a guarded `contextId`.
 Callers can request additional fields explicitly for diagnostics.
 
-The Codex Agent rule requires one first-use notice per conversation, not one
+The Agent rule requires one first-use notice per conversation, not one
 notice per edit. Before Vocal Mode work, the Agent asks the user to
 select the intended Note Group, select or assign its singer, and then provide
 either the exact current singer mode names or a screenshot of that panel.

@@ -7,6 +7,9 @@ This repository contains a TypeScript MCP stdio server and a persistent Synthesi
 ## Invariants
 
 - Keep the MCP server network-free by default.
+- Keep the server and its documentation client-neutral. Do not add
+  configuration, code paths, or instructions bound to one MCP client; describe
+  the stdio launch command and let each client register it its own way.
 - Keep track, group, and note indices 1-based at the protocol boundary.
 - Validate every ordinary write and every independent transaction step before
   calling `Project:newUndoRecord()`. A forward transaction step that explicitly

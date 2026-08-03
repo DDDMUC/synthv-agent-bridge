@@ -23,8 +23,7 @@
   plus in-session guarded rollback.
 - Range-constrained harmony tracks, deterministic note humanization, expression
   presets, and lyrics-to-note fitting.
-- A read-only doctor for installed versions, heartbeats, IPC state, and Codex
-  configuration.
+- A read-only doctor for installed versions, heartbeats, and IPC state.
 
 ## Completed — official API coverage expansion and v3 migration
 

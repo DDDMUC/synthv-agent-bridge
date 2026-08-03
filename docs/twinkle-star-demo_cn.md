@@ -3,9 +3,9 @@
 [English](twinkle-star-demo.md) |
 [简体中文](twinkle-star-demo_cn.md)
 
-这个内置 Demo 让第一次使用的用户通过一句指令，体验 Codex 使用现有紧凑
+这个内置 Demo 让第一次使用的用户通过一句指令，体验 Agent 使用现有紧凑
 MCP 接口创建并调音完整中文版《小星星》。它属于“引导式一键”：完成 Vocal
-初始化后，创建音符、整曲调音、回读验证和播放均由 Codex 自动完成。
+初始化后，创建音符、整曲调音、回读验证和播放均由 Agent 自动完成。
 
 启动指令：
 
@@ -20,7 +20,7 @@ MCP 接口创建并调音完整中文版《小星星》。它属于“引导式�
 
 ## 用户会看到什么
 
-Codex 在每个阶段开始前打印一个简短小标题：
+Agent 在每个阶段开始前打印一个简短小标题：
 
 1. **Demo 1/5：检查连接与安全位置**
 2. **Demo 2/5：创建独立《小星星》音符组**
@@ -33,22 +33,22 @@ Codex 在每个阶段开始前打印一个简短小标题：
 
 ## 引导流程
 
-1. Codex 检查 Bridge，只读取足以确定安全位置的工程结构，并把 Demo 放在
+1. Agent 检查 Bridge，只读取足以确定安全位置的工程结构，并把 Demo 放在
    现有工程内容之后。
-2. 用户明确同意后，Codex 使用 `add_notes` 和
+2. 用户明确同意后，Agent 使用 `add_notes` 和
    `grouping: "ensureNonMain"` 创建名为
    `SynthV Agent Demo - 小星星` 的独立非主 Group。它不修改已有音符、
    歌词、时值、自动化、轨道或 Group。
 3. 用户选择这个 Demo Group，再选择或分配要使用的 Vocal，然后截图完整
    唱法（Vocal Mode）面板，或按照面板准确输入全部唱法名称。
 4. 这一步无法省略：SynthV 官方脚本 API 无法读取当前 Vocal 身份，也无法
-   枚举从未调整、仍为默认值的唱法名称。Codex 不得猜测或绕过。
-5. Codex 重新读取 Demo Group，只把用户提供的准确唱法名称映射到模板中的
+   枚举从未调整、仍为默认值的唱法名称。Agent 不得猜测或绕过。
+5. Agent 重新读取 Demo Group，只把用户提供的准确唱法名称映射到模板中的
    温柔、明亮、童真风格；同时读取当前 Automation `definition.range`，
    再通过一个 `apply_group_tuning` 批次完成调音。模板会把 `automation`
    和 `pitchAnalysis` 放进顶层 `sv_query.include` 投影，确保新鲜 Guard
    保留在 Context 中。
-6. Codex 回读整个 Demo Group，确认 42 个音符、5 处明确乐句间隙、
+6. Agent 回读整个 Demo Group，确认 42 个音符、5 处明确乐句间隙、
    0 个重叠、唱法和音素保持、5 条自动化曲线存在，然后开始循环播放。
 
 因此，用户只需用一句话启动 Demo，并在中途完成一次歌手选择和唱法名称

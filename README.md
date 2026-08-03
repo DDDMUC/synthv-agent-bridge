@@ -8,16 +8,16 @@ The bridge uses Synthesizer V's public Lua scripting API. It does **not** parse 
 
 **Video demo:** [Watch SynthV Agent Bridge on Bilibili](https://www.bilibili.com/video/BV1kU3P6LEoF)
 
-> New here? Follow the [Quickstart](docs/quickstart.md). Codex can handle most
-> setup steps for you, including environment checks, Node.js installation when
-> permitted, dependency installation, the build, SynthV script installation,
-> MCP registration, and diagnostics.
+> New here? Follow the [Quickstart](docs/quickstart.md). An MCP-capable Agent
+> can handle most setup steps for you, including environment checks, Node.js
+> installation when permitted, dependency installation, the build, SynthV script
+> installation, MCP registration, and diagnostics.
 > 中文用户请参阅[中文快速开始](docs/quickstart_cn.md)；环境检查、依赖与
 > Node.js 安装、构建、SynthV 脚本安装、MCP 注册和诊断等大部分工作都可以
-> 交给 Codex 完成。
+> 交给支持 MCP 的 Agent 完成。
 
 > [!TIP]
-> First connection? Reply **`Run the Twinkle Star demo.`** Codex will explain
+> First connection? Reply **`Run the Twinkle Star demo.`** The Agent will explain
 > each stage with a short heading, create an isolated 42-note Demo Group, pause
 > once for you to select its Vocal and provide every exact Vocal Mode name,
 > then automatically tune, verify, and loop the song. Existing project material
@@ -52,6 +52,12 @@ The bridge uses Synthesizer V's public Lua scripting API. It does **not** parse 
 See the [v3 architecture](docs/architecture-v3.md),
 [development plan](docs/v3-development-plan.md), and
 [SV2 API coverage matrix](docs/sv2-api-coverage-v3.md).
+
+An Agent-facing skill package is bundled at
+[skill/synthv-bridge-skill](skill/synthv-bridge-skill/SKILL.md); clients that
+support skills can load it to learn the tools, action catalog, and data model.
+Field-level compatibility with the SV Harmony API is recorded in
+[docs/harmony-alignment.md](docs/harmony-alignment.md).
 
 ## What it can do
 
@@ -153,7 +159,7 @@ panel.
 ## Architecture
 
 ```text
-Codex / another local stdio MCP host
+     Local stdio MCP client
                     │
                     │ MCP over stdio
                     ▼
@@ -179,7 +185,7 @@ notes through the same guarded Lua `add_notes` path. It never parses `.svp`.
 
 - Synthesizer V Studio **2 Pro 2.1.2 or later**.
 - Node.js **20.10 or later**.
-- An MCP host that supports local stdio servers, such as Codex CLI or another compatible local client.
+- An MCP client that supports local stdio servers.
 
 This project targets the scripting environment in Synthesizer V Studio 2 Pro; it does not target the Basic edition.
 
@@ -187,7 +193,7 @@ This project targets the scripting environment in Synthesizer V Studio 2 Pro; it
 
 New users can follow the end-to-end [Quickstart](docs/quickstart.md) or
 [中文快速开始](docs/quickstart_cn.md). It covers cloning the repository,
-Codex-assisted Node.js setup, script installation, MCP registration, connection
+Agent-assisted Node.js setup, script installation, MCP registration, connection
 verification, and the first guarded tuning edit.
 
 ### 1. Build the MCP server
@@ -254,24 +260,21 @@ alive and shows `B offline`. SynthV's **Abort All Running Scripts** also stops
 the side panel itself, so the already-rendered panel freezes and neither its
 status nor its buttons can update. Reopen SynthV afterward to restore it.
 
-### 4. Connect an MCP host
+### 4. Connect an MCP client
 
-#### Codex
+Register the built server as a local **stdio** server:
 
-The repository includes a project-scoped `.codex/config.toml`:
-
-```toml
-[mcp_servers.synthv-agent-bridge]
-command = "node"
-args = ["dist/src/cli.js"]
-startup_timeout_sec = 120
+```
+node /absolute/path/to/synthv-agent-bridge/dist/src/cli.js
 ```
 
-Trust and open the repository root, build it, then restart Codex or start a new
-task. This keeps the MCP registration scoped to this project and avoids
-modifying the user's global Codex configuration.
+Allow at least 120 s for the first launch, then restart or reconnect the server
+so the client picks up the build. Prefer a project-scoped registration when the
+client supports one; it avoids editing a global configuration file.
 
-A complete TOML example is available at [examples/codex-config.toml](examples/codex-config.toml). Other local MCP hosts can use the same `node .../dist/src/cli.js` command when they support **STDIO** servers.
+Configuration shapes for JSON and TOML clients, plus the split temporary
+directory case, are in
+[examples/mcp-client-config.md](examples/mcp-client-config.md).
 
 ### Optional native connection panel
 
@@ -513,7 +516,7 @@ false success.
 
 ## Safe editing workflow
 
-The Codex Agent rules require this sequence:
+The Agent rules require this sequence:
 
 1. For phrase tuning, call `get_phrase_context` immediately before editing.
    For Group Voice or Vocal Modes, call `get_group_voice` with no locator to
@@ -589,12 +592,12 @@ When a custom IPC directory is used, create it before starting the SynthV script
 
 ### Windows and WSL
 
-The simplest setup is to run the MCP server with **Windows Node.js** when SynthV runs on Windows. When Codex runs inside WSL, point Node at the existing Windows temporary directory that SynthV uses by default:
+The simplest setup is to run the MCP server with **Windows Node.js** when SynthV runs on Windows. When the client runs inside WSL, point Node at the existing Windows temporary directory that SynthV uses by default:
 
 - SynthV/Windows: leave `SYNTHV_AGENT_BRIDGE_DIR` unset so the script uses `%TEMP%`.
 - Node/WSL: set `SYNTHV_AGENT_BRIDGE_DIR=/mnt/c/Users/you/AppData/Local/Temp`.
 
-For a dedicated subdirectory, create it first and set equivalent Windows and WSL path spellings for the two processes. The SynthV GUI must inherit its Windows environment variable, so restart SynthV after changing it. The MCP server can receive its own value through the `env` table in Codex configuration.
+For a dedicated subdirectory, create it first and set equivalent Windows and WSL path spellings for the two processes. The SynthV GUI must inherit its Windows environment variable, so restart SynthV after changing it. The MCP server can receive its own value through the `env` block in the client's server configuration.
 
 ## Development
 
@@ -623,9 +626,9 @@ npm run doctor -- --target "/path/to/Synthesizer V Studio 2/scripts"
 
 The doctor checks source/installed versions and exact script contents, compiled
 MCP freshness, the running MCP capability fingerprint, Bridge and MCP
-heartbeats, the resolved IPC directory, residual processing/control files, and
-Codex configuration. Add `--json` for machine-readable output. It never
-modifies the project or installed files.
+heartbeats, the resolved IPC directory, and residual processing/control files.
+Add `--json` for machine-readable output. It never modifies the project or
+installed files.
 
 ## Current limitations
 
@@ -666,7 +669,7 @@ modifies the project or installed files.
 - Expression presets are intentionally small building blocks, not phrase
   analysis or pronunciation-quality scoring.
 - The bridge has not yet been validated against every SynthV 2.x patch and every voice database.
-- ChatGPT does not connect directly to this local stdio server. Use Codex or another local MCP host; a future remote adapter would need explicit authentication and transport security.
+- Hosted web chat clients do not connect directly to this local stdio server. Use a local MCP client; a future remote adapter would need explicit authentication and transport security.
 
 See [docs/roadmap.md](docs/roadmap.md).
 
