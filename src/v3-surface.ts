@@ -620,6 +620,55 @@ function normalizeItemIndex(
   return value as number;
 }
 
+function assertGuardArrayResolved(
+  args: JsonRecord,
+  field: string,
+  canonical: "noteIndex" | "pitchControlIndex",
+): void {
+  if (!Array.isArray(args[field])) {
+    return;
+  }
+  args[field].forEach((value, position) => {
+    const item = optionalRecord(value, `${field}[]`);
+    if (item === undefined || item.fingerprint !== undefined) {
+      return;
+    }
+    throw new BridgeProtocolError(
+      `${field}[${position + 1}].fingerprint is required without a writeIntent contextId`,
+      { field: `${field}[].fingerprint`, canonical },
+    );
+  });
+}
+
+function assertGuardsResolved(action: string, args: JsonRecord): void {
+  const contextExpansion = contextExpansionForAction(action);
+  if (contextExpansion === undefined) {
+    return;
+  }
+  if (contextExpansion.noteArrayField !== undefined) {
+    assertGuardArrayResolved(args, contextExpansion.noteArrayField, "noteIndex");
+  }
+  if (contextExpansion.pitchArrayField !== undefined) {
+    assertGuardArrayResolved(
+      args,
+      contextExpansion.pitchArrayField,
+      "pitchControlIndex",
+    );
+  }
+  if (contextExpansion.retakeGuard === true && args.fingerprint === undefined) {
+    throw new BridgeProtocolError(
+      "fingerprint is required without a writeIntent contextId",
+      { field: "fingerprint" },
+    );
+  }
+  const pitchControls = optionalRecord(args.pitchControls, "pitchControls");
+  if (pitchControls !== undefined) {
+    for (const field of ["edits", "deletes"] as const) {
+      assertGuardArrayResolved(pitchControls, field, "pitchControlIndex");
+    }
+  }
+}
+
 function expandGuardedArray(
   args: JsonRecord,
   field: string,
@@ -796,6 +845,7 @@ function expandContext(
     );
   }
   if (contextId === undefined) {
+    assertGuardsResolved(action, result);
     return result;
   }
   const context = contexts.resolve(contextId, requiredMode);
@@ -1088,6 +1138,7 @@ function expandContext(
       }
     }
   }
+  assertGuardsResolved(action, result);
   return result;
 }
 
@@ -1554,7 +1605,13 @@ export function registerV3InternalAdapters(
           .enum(["readOnly", "writeIntent"])
           .default("readOnly"),
         include: z.array(z.enum(V3_INCLUDE_VALUES)).max(8).optional(),
-        fields: z.array(z.string().min(1).max(100)).max(64).optional(),
+        fields: z
+          .array(z.string().min(1).max(100))
+          .max(64)
+          .describe(
+            "Filters top-level keys of the result root only. Nested collections such as get_track_notes groups[].notes are not column-filtered; use dense or a narrower page instead.",
+          )
+          .optional(),
         dense: z.enum(["auto", "never", "always"]).default("auto"),
         debug: z.boolean().default(false),
       },

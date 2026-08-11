@@ -48,6 +48,11 @@ const blickSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const durationSchema = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 const midiPitchSchema = z.number().int().min(0).max(127);
 const fingerprintSchema = z.string().min(1);
+const contextFilledGuardSchema = fingerprintSchema
+  .optional()
+  .describe(
+    "Optional with a writeIntent contextId: the Runtime fills this guard from that Context. Required without a contextId; a value that disagrees with the Context fails with CONTEXT_SCOPE_MISMATCH.",
+  );
 const guardTokenSchema = z.string().min(1).max(128);
 const groupUuidSchema = z.string().min(1);
 const responseModeSchema = z.enum(["full", "compact"]).default("full");
@@ -281,9 +286,7 @@ const noteTransformSchema = z
 
 const fingerprintedNoteSchema = z.object({
   noteIndex: indexSchema.describe("Current 1-based note index."),
-  fingerprint: fingerprintSchema.describe(
-    "Fingerprint from the latest note or selection read.",
-  ),
+  fingerprint: contextFilledGuardSchema,
 });
 
 const automationPointSchema = z.object({
@@ -294,7 +297,7 @@ const automationPointSchema = z.object({
 const groupTuningNoteEditSchema = z
   .object({
     noteIndex: indexSchema,
-    fingerprint: fingerprintSchema,
+    fingerprint: contextFilledGuardSchema,
     changes: noteChangesSchema.optional(),
     phonemeChanges: phonemePropertyChangesSchema.optional(),
   })
@@ -1743,7 +1746,7 @@ export function createServer(config: BridgeConfig): McpServer {
               .array(
                 z.object({
                   pitchControlIndex: indexSchema,
-                  fingerprint: fingerprintSchema,
+                  fingerprint: contextFilledGuardSchema,
                   changes: pitchControlChangesSchema,
                 }),
               )
@@ -1754,7 +1757,7 @@ export function createServer(config: BridgeConfig): McpServer {
               .array(
                 z.object({
                   pitchControlIndex: indexSchema,
-                  fingerprint: fingerprintSchema,
+                  fingerprint: contextFilledGuardSchema,
                 }),
               )
               .min(1)
@@ -1953,19 +1956,22 @@ export function createServer(config: BridgeConfig): McpServer {
     {
       title: "Edit SynthV Notes",
       description:
-        "Safely edit notes in one group. Each edit must include the fingerprint returned by the latest get_track_notes or get_selection call.",
+        "Safely edit notes in one group. Read with sv_query contextMode=writeIntent and pass that contextId; each edit then needs only noteIndex and changes.",
       inputSchema: {
         ...groupLocatorShape,
         edits: z
           .array(
             z.object({
               noteIndex: indexSchema.describe("Current 1-based note index inside the target group."),
-              fingerprint: fingerprintSchema,
+              fingerprint: contextFilledGuardSchema,
               changes: noteChangesSchema,
             }),
           )
           .min(1)
-          .max(512),
+          .max(512)
+          .describe(
+            "The SynthV host is fragile with large note batches: keep each call at or below 60 items and refresh the contextId between batches. The 512 ceiling is a protocol bound, not a safe batch size.",
+          ),
       },
       annotations: {
         readOnlyHint: false,
@@ -2047,18 +2053,21 @@ export function createServer(config: BridgeConfig): McpServer {
     {
       title: "Delete SynthV Notes",
       description:
-        "Safely delete notes in one group. Each target must include the fingerprint returned by the latest read.",
+        "Safely delete notes in one group. Read with sv_query contextMode=writeIntent and pass that contextId; each target then needs only noteIndex.",
       inputSchema: {
         ...groupLocatorShape,
         notes: z
           .array(
             z.object({
               noteIndex: indexSchema,
-              fingerprint: fingerprintSchema,
+              fingerprint: contextFilledGuardSchema,
             }),
           )
           .min(1)
-          .max(512),
+          .max(512)
+          .describe(
+            "The SynthV host is fragile with large note batches: keep each call at or below 60 items and refresh the contextId between batches. The 512 ceiling is a protocol bound, not a safe batch size.",
+          ),
       },
       annotations: {
         readOnlyHint: false,
@@ -2094,7 +2103,7 @@ export function createServer(config: BridgeConfig): McpServer {
         "Generate a fingerprint-verified AI retake with independent duration, pitch, and timbre variation controls.",
       inputSchema: {
         ...retakeNoteShape,
-        fingerprint: fingerprintSchema,
+        fingerprint: contextFilledGuardSchema,
         newDuration: z.boolean().default(true),
         newPitch: z.boolean().default(true),
         newTimbre: z.boolean().default(true),
@@ -2119,7 +2128,7 @@ export function createServer(config: BridgeConfig): McpServer {
         "Activate the default take or a take ID generated and tracked by this bridge.",
       inputSchema: {
         ...retakeNoteShape,
-        fingerprint: fingerprintSchema,
+        fingerprint: contextFilledGuardSchema,
         takeId: z.number().int().min(0),
       },
       annotations: {
@@ -2141,7 +2150,7 @@ export function createServer(config: BridgeConfig): McpServer {
         "Delete a non-default take ID generated and tracked by this bridge.",
       inputSchema: {
         ...retakeNoteShape,
-        fingerprint: fingerprintSchema,
+        fingerprint: contextFilledGuardSchema,
         takeId: z.number().int().min(1),
       },
       annotations: {
@@ -2215,7 +2224,7 @@ export function createServer(config: BridgeConfig): McpServer {
           .array(
             z.object({
               pitchControlIndex: indexSchema,
-              fingerprint: fingerprintSchema,
+              fingerprint: contextFilledGuardSchema,
               changes: pitchControlChangesSchema,
             }),
           )
@@ -2245,7 +2254,7 @@ export function createServer(config: BridgeConfig): McpServer {
           .array(
             z.object({
               pitchControlIndex: indexSchema,
-              fingerprint: fingerprintSchema,
+              fingerprint: contextFilledGuardSchema,
             }),
           )
           .min(1)

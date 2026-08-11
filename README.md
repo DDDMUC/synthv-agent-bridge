@@ -419,6 +419,19 @@ All track, group, and note indices are **1-based**, matching the SynthV Lua API.
 `get_note_phoneme_data`, `get_automation`, and `sample_automation` accept
 `responseMode: "compact"`. Full mode remains the default.
 
+- `get_track_notes` compacts its nested `groups[].notes` on the `sv_query`
+  projection path. Blick and quarter duplicates of the same position
+  (`absoluteOnset`, `absoluteEnd`, `absoluteEndSeconds`, `endPosition`,
+  `onsetQuarters`, `durationQuarters`) are dropped in favor of group-local
+  `onset`/`duration` plus `absoluteOnsetSeconds`/`absoluteDurationSeconds`, and
+  a group of 24 or more notes is returned as `{columns, rows}` with
+  `noteFormat: "rows"`. Note guards are captured before projection, so
+  `contextId` stays valid.
+- `sv_query.fields` filters top-level keys of the result root only. Nested
+  collections such as `groups[].notes` are not column-filtered; asking for note
+  field names returns just the envelope plus a `projectionWarning` listing the
+  root keys that were actually available.
+
 - Prefer `get_phrase_context` before phrase tuning. It can locate the current
   piano-roll Group without a prior selection call, prefers selected notes when
   no explicit scope is supplied, and combines compact pitch/timing/phoneme
@@ -513,7 +526,13 @@ Any Agent host performing a guarded write should use this sequence:
    for diagnostics. For other work, read only the object that owns the intended
    change.
 2. Present or internally construct a small, reviewable change.
-3. Copy the latest applicable group/reference UUIDs and fingerprints, track fingerprint, automation/time-axis fingerprint, and note or Smart Pitch fingerprints.
+3. Reuse the `contextId` from that read with `contextMode: "writeIntent"`.
+   The Runtime fills the group/reference UUIDs and fingerprints, track
+   fingerprint, automation/time-axis fingerprint, and note or Smart Pitch
+   guards from that Context, so a note edit needs only `noteIndex` and its
+   `changes`. Copy guards by hand only when writing without a `contextId`; a
+   copied value that disagrees with the Context fails with
+   `CONTEXT_SCOPE_MISMATCH`.
 4. Call the smallest write tool that completes the intended change. Group
    content writes reject a multiply referenced Note Group by default. Use
    `sharedGroupPolicy=allowAllReferences` only when changing every linked
@@ -529,6 +548,26 @@ Any Agent host performing a guarded write should use this sequence:
 One compact read should feed one complete batch of related changes. Do not
 refresh `contextId` by reading the whole selection or song when only Group
 Voice changed.
+
+Large edits stay batched rather than maximal. `edit_notes` and `delete_notes`
+accept up to 512 items per call, but that ceiling is a protocol bound: SynthV
+2.2.1 is fragile with large note batches, so keep each call at or below roughly
+60 items.
+
+One `writeIntent` `contextId` can serve several of those batches. A Context
+guards each note individually, so a batch succeeds while every note it targets
+still matches the fingerprint that read captured. Read one page that covers all
+target notes, then send disjoint batches from that single `contextId`.
+
+Read again when a guard can no longer be fresh:
+
+- a note the Context already changed is rejected with `STALE_NOTE` and
+  `retry: query_again`, so re-touching a note needs a new read;
+- `add_notes` or `delete_notes` shifts the indices after the edited position,
+  and every shifted note fails `STALE_NOTE` against the older Context.
+
+Both cases fail before any write, so an over-optimistic reuse costs a rejected
+call rather than a wrong edit.
 
 A note fingerprint includes the group UUID, note index, onset, duration, pitch, detune, lyrics, phonemes, language, musical type, pitch mode, rap accent, retake count, and note attributes. This prevents an agent from applying an old plan to a note that the user has already changed.
 
@@ -571,9 +610,10 @@ The Node server and SynthV script must resolve the **same physical IPC directory
 | Variable | Default | Meaning |
 |---|---:|---|
 | `SYNTHV_AGENT_BRIDGE_DIR` | OS temporary directory | Shared IPC directory. |
-| `SYNTHV_AGENT_BRIDGE_TIMEOUT_MS` | `15000` | Maximum response wait. |
+| `SYNTHV_AGENT_BRIDGE_TIMEOUT_MS` | `30000` | Maximum response wait. The default leaves room for a cold SynthV host answering its first request. |
 | `SYNTHV_AGENT_BRIDGE_POLL_MS` | `10` | Node response polling interval. |
-| `SYNTHV_AGENT_BRIDGE_STALE_REQUEST_MS` | `30000` | Age at which abandoned request files and locks can be recovered. Must be greater than the response timeout. |
+| `SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS` | `1000` | How long a client waits for the single-writer lock before reporting `BRIDGE_BUSY`. Clamped to the response timeout. |
+| `SYNTHV_AGENT_BRIDGE_STALE_REQUEST_MS` | `60000` | Age at which abandoned request files and locks can be recovered. Must be greater than the response timeout. |
 | `SYNTHV_AGENT_BRIDGE_STATUS_STALE_MS` | `5000` | Maximum heartbeat age considered connected. |
 
 When a custom IPC directory is used, create it before starting the SynthV script. The Node process also creates the directory, but the documented startup order starts SynthV first.
@@ -622,7 +662,10 @@ files.
 
 ## Current limitations
 
-- One request may be in flight at a time.
+- One request may be in flight at a time. A second client waits up to
+  `SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS` (1 s by default) for the single-writer
+  lock and then reports `BRIDGE_BUSY`. Sustained parallel driving of the bridge
+  from two hosts is still unsupported.
 - A client-side timeout is ambiguous: SynthV may still finish the operation. The processing marker remains until the Lua host completes, and the agent should read the current project before deciding whether to retry a write.
 - The current build classifies isolated Group clone, Note Group/Track/
   Track-shell clone, harmony Track, and transaction apply/rollback as

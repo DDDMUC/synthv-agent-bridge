@@ -75,3 +75,29 @@ test("loadConfig ignores the removed legacy MCP-surface switch", () => {
   );
   assert.equal("mcpSurface" in config, false);
 });
+
+test("loadConfig allows a cold SynthV host to answer the first request", () => {
+  const config = loadConfig({}, "/tmp");
+
+  assert.equal(config.timeoutMs, 30_000);
+  assert.equal(config.staleRequestMs, 60_000);
+  assert.ok(config.staleRequestMs > config.timeoutMs);
+});
+
+test("loadConfig bounds the single-writer lock wait by the response timeout", () => {
+  assert.equal(loadConfig({}, "/tmp").lockWaitMs, 1_000);
+  assert.equal(
+    loadConfig({ SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS: "250" }, "/tmp").lockWaitMs,
+    250,
+  );
+  assert.equal(
+    loadConfig(
+      {
+        SYNTHV_AGENT_BRIDGE_TIMEOUT_MS: "400",
+        SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS: "9000",
+      },
+      "/tmp",
+    ).lockWaitMs,
+    400,
+  );
+});

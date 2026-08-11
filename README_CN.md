@@ -385,6 +385,16 @@ Guard，会安全失败，而不会静默改换目标。`readOnly` Context 不�
 `get_note_phoneme_data`、`get_automation` 和 `sample_automation` 接受
 `responseMode: "compact"`。完整模式仍为默认值。
 
+- `get_track_notes` 在 `sv_query` 投影路径上会压缩嵌套的 `groups[].notes`：
+  丢弃同一位置的 blick/四分音符重复字段（`absoluteOnset`、`absoluteEnd`、
+  `absoluteEndSeconds`、`endPosition`、`onsetQuarters`、`durationQuarters`），
+  保留 Group 内的 `onset`/`duration` 与 `absoluteOnsetSeconds`/
+  `absoluteDurationSeconds`；单个 Group 达到 24 个音符时以 `{columns, rows}`
+  返回并标记 `noteFormat: "rows"`。音符守卫在投影前已捕获，`contextId` 仍然有效。
+- `sv_query.fields` 只过滤结果根对象的顶层 key。`groups[].notes` 这类嵌套集合
+  不参与列投影；传入音符字段名只会得到信封字段，外加一条 `projectionWarning`
+  列出根对象实际可用的 key。
+
 - 乐句调音前优先使用 `get_phrase_context`。没有显式作用域时，它可以在
   无需先读取选区的情况下定位当前钢琴卷帘 Group，并优先使用选中音符；
   一次请求即可组合紧凑音高/时值/音素音符、Group Voice/唱法（Vocal Mode）和
@@ -465,8 +475,11 @@ Setter。在不兼容宿主上真正修改模式，会在创建撤销记录前�
    Group 为目标。V2 默认只返回参数、唱法、目标索引和 `contextId`；
    只有诊断时才请求完整字段。其他工作只读取拥有预期变更的对象。
 2. 展示或在内部构建一个小型、便于审核的变更。
-3. 复制最新适用的 Group/引用 UUID 和指纹、轨道指纹、自动化/时间轴指纹，
-   以及音符或 Smart Pitch 指纹。
+3. 沿用该次读取返回的 `contextId`（`contextMode: "writeIntent"`）。
+   Runtime 会从这个 Context 填入 Group/引用 UUID 和指纹、轨道指纹、
+   自动化/时间轴指纹以及音符或 Smart Pitch 守卫，因此一次音符编辑只需要
+   `noteIndex` 和 `changes`。只有在不带 `contextId` 写入时才需要手工复制
+   指纹；手工值与 Context 不一致会返回 `CONTEXT_SCOPE_MISMATCH`。
 4. 调用能完成目标的最小写入工具。Group 内容写入默认拒绝有多个引用的
    Note Group。只有确实要修改全部链接位置时，才使用
    `sharedGroupPolicy=allowAllReferences`，并同时提供刚读取的
@@ -478,6 +491,23 @@ Setter。在不兼容宿主上真正修改模式，会在创建撤销记录前�
 
 一次紧凑读取应支持一批完整的相关变更。如果只修改了 Group Voice，不要
 通过读取整个选区或整首歌曲来刷新 `contextId`。
+
+大批量编辑要分批，而不是一次拉满。`edit_notes` 和 `delete_notes` 每次调用
+最多接受 512 项，但这个上限只是协议边界：SynthV 2.2.1 在大批量音符写入下
+很脆弱，因此每次调用建议不超过约 60 项。
+
+一个 `writeIntent` `contextId` 可以服务多批写入。Context 对每个音符单独签发
+守卫，因此只要该批目标音符仍与读取时的指纹一致，写入就会成功。做法是：一次
+读取覆盖全部目标音符的页，然后用同一个 `contextId` 发送互不重叠的多批。
+
+以下两种情况必须重新读取：
+
+- Context 已经改过的音符会以 `STALE_NOTE` 和 `retry: query_again` 被拒绝，
+  再次修改同一个音符需要新的读取；
+- `add_notes` 或 `delete_notes` 会移动编辑位置之后的音符索引，所有被移动的
+  音符在旧 Context 下都会 `STALE_NOTE`。
+
+两种情况都在写入前失败，所以过于乐观的复用只会浪费一次调用，不会造成错误编辑。
 
 音符指纹包含 Group UUID、音符索引、起点、时值、音高、微调、歌词、音素、
 语言、音乐类型、音高模式、说唱重音、Retake 数量和音符属性。这可以防止
@@ -521,9 +551,10 @@ Node 服务器和 SynthV 脚本必须解析到**同一个物理 IPC 目录**。
 | 变量 | 默认值 | 含义 |
 |---|---:|---|
 | `SYNTHV_AGENT_BRIDGE_DIR` | 操作系统临时目录 | 共享 IPC 目录。 |
-| `SYNTHV_AGENT_BRIDGE_TIMEOUT_MS` | `15000` | 最大响应等待时间。 |
+| `SYNTHV_AGENT_BRIDGE_TIMEOUT_MS` | `30000` | 最大响应等待时间。默认值为冷启动的 SynthV 宿主处理首个请求留出余量。 |
 | `SYNTHV_AGENT_BRIDGE_POLL_MS` | `10` | Node 响应轮询间隔。 |
-| `SYNTHV_AGENT_BRIDGE_STALE_REQUEST_MS` | `30000` | 可恢复废弃请求文件和锁的时间阈值，必须大于响应超时。 |
+| `SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS` | `1000` | 客户端等待单写者锁多久后报 `BRIDGE_BUSY`，取值不超过响应超时。 |
+| `SYNTHV_AGENT_BRIDGE_STALE_REQUEST_MS` | `60000` | 可恢复废弃请求文件和锁的时间阈值，必须大于响应超时。 |
 | `SYNTHV_AGENT_BRIDGE_STATUS_STALE_MS` | `5000` | 仍视为已连接的最大心跳年龄。 |
 
 使用自定义 IPC 目录时，请在启动 SynthV 脚本前创建它。Node 进程也会创建
@@ -575,7 +606,9 @@ MCP 构建新鲜度、运行中能力指纹、Bridge/MCP 心跳、解析后的 I
 
 ## 当前限制
 
-- 同一时间只能有一个请求进行中。
+- 同一时间只能有一个请求进行中。第二个客户端会等待单写者锁最多
+  `SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS`（默认 1 秒），超时后返回 `BRIDGE_BUSY`。
+  两个宿主长期并行驱动 Bridge 仍不受支持。
 - 客户端超时具有不确定性：SynthV 可能仍会完成操作。处理标记会保留到
   Lua 宿主执行结束；Agent 应先读取当前工程，再决定是否重试写入。
 - 当前构建将 isolated Group clone、Note Group/Track/Track-shell clone、

@@ -319,7 +319,11 @@ export function registerV3Facade(
     getSessionToken,
   );
   const argsSchema = z.record(z.string(), z.unknown()).default({});
-  const actionSchema = z.string().min(1).max(100);
+  const actionSchema = z
+    .string()
+    .min(1)
+    .max(100)
+    .describe('Action name returned by sv_describe, for example "edit_notes".');
   const contextIdSchema = z.string().min(20).max(128).optional();
 
   registerTool(
@@ -379,7 +383,7 @@ export function registerV3Facade(
     {
       title: "Describe SynthV Capabilities",
       description:
-        "List compact v3 query/command capabilities or return one just-in-time action schema.",
+        "List compact v3 query/command capabilities, or pass action to return one just-in-time action schema.",
       inputSchema: {
         action: actionSchema.optional(),
       },
@@ -430,7 +434,13 @@ export function registerV3Facade(
           )
           .max(8)
           .optional(),
-        fields: z.array(z.string().min(1).max(100)).max(64).optional(),
+        fields: z
+          .array(z.string().min(1).max(100))
+          .max(64)
+          .describe(
+            "Filters top-level keys of the result root only. Nested collections such as get_track_notes groups[].notes are not column-filtered.",
+          )
+          .optional(),
         dense: z.enum(["auto", "never", "always"]).default("auto"),
         debug: z.boolean().default(false),
       },

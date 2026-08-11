@@ -4,7 +4,32 @@ All notable changes will be documented in this file.
 
 ## Unreleased
 
-- No unreleased changes.
+### Fixed
+
+- Documented `fingerprint` guards as Context-filled instead of hand-copied.
+  Guarded note, Smart Pitch, and Retake fields are now optional in the action
+  schemas the Agent reads, and a write without both a `contextId` and an
+  explicit guard fails in TypeScript instead of reaching the host (issue #8.1).
+- `sv_query.fields` now documents that it filters only top-level keys of the
+  result root, and a projection that matches no root key returns a
+  `projectionWarning` with the available keys instead of a silent empty
+  object (issue #8.2).
+- Described the `sv_describe.action` parameter that returns one just-in-time
+  action schema (issue #8.3).
+
+### Changed
+
+- `get_track_notes` compacts and densifies its nested `groups[].notes` on the
+  `sv_query` projection path, dropping blick/quarter duplicates of positions
+  already carried in group-local and seconds units (issue #8.4).
+- Raised the default response timeout to 30 s and the stale-recovery age to
+  60 s so a cold SynthV host can answer its first request (issue #8.5).
+- A client now waits up to `SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS` (1 s by default)
+  for the single-writer IPC lock before reporting `BRIDGE_BUSY` (issue #8.8).
+- Documented the recommended batch write path: at most about 60 note edits per
+  call, and one `writeIntent` `contextId` reused across disjoint batches, with a
+  fresh read only after a note changes or an add/delete shifts indices
+  (issues #8.6 and #8.7).
 
 ## 0.3.0 - 2026-08-03
 
