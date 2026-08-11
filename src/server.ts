@@ -1970,7 +1970,7 @@ export function createServer(config: BridgeConfig): McpServer {
           .min(1)
           .max(512)
           .describe(
-            "The SynthV host is fragile with large note batches: keep each call at or below 60 items and refresh the contextId between batches. The 512 ceiling is a protocol bound, not a safe batch size.",
+            "The SynthV host is fragile with large note batches: keep each call at or below 60 items. One writeIntent contextId can serve multiple batches while every targeted note guard remains fresh; query again after STALE_* or an index-shifting add/delete. The 512 ceiling is a protocol bound, not a safe batch size.",
           ),
       },
       annotations: {
@@ -2066,7 +2066,7 @@ export function createServer(config: BridgeConfig): McpServer {
           .min(1)
           .max(512)
           .describe(
-            "The SynthV host is fragile with large note batches: keep each call at or below 60 items and refresh the contextId between batches. The 512 ceiling is a protocol bound, not a safe batch size.",
+            "The SynthV host is fragile with large note batches: keep each call at or below 60 items. One writeIntent contextId can serve multiple batches while every targeted note guard remains fresh; query again after STALE_* or an index-shifting add/delete. The 512 ceiling is a protocol bound, not a safe batch size.",
           ),
       },
       annotations: {

@@ -188,7 +188,8 @@ git stash pop
 - `edits.items.required` = `["noteIndex","changes"]`，**不含** fingerprint；
 - `edits.items.properties.fingerprint.description` =
   `Optional with a writeIntent contextId: the Runtime fills this guard from that Context. Required without a contextId; a value that disagrees with the Context fails with CONTEXT_SCOPE_MISMATCH.`
-- `edits.description` 含 `keep each call at or below 60 items`；
+- `edits.description` 同时包含 `keep each call at or below 60 items` 与
+  `can serve multiple batches`，且**不再**要求 `refresh the contextId between batches`；
 - 顶层 `description` 不再含 `Each edit must include the fingerprint`。
 
 实测响应 2857 字符（动作描述预算 12000）。再查 `delete_notes`：`notes.items.required`
