@@ -117,8 +117,8 @@ async function newestMtimeMs(files) {
 
 record(
   "package-version",
-  expectedVersion === "0.3.0" ? "ok" : "error",
-  `Package version is ${expectedVersion}; this release line must remain 0.3.0.`,
+  expectedVersion === "0.3.1" ? "ok" : "error",
+  `Package version is ${expectedVersion}; this release line must remain 0.3.1.`,
 );
 
 const componentBuildIdentity = await readComponentBuildIdentity(repositoryRoot);

@@ -84,7 +84,7 @@ The native side panel remains an optional compact review console. Future work
 is limited to stability, compatibility, and interaction fixes; it is not a
 performance roadmap or a second SynthV editing interface.
 
-## Current — v0.3.0 host-neutral Runtime maintenance
+## Current — v0.3.1 host-neutral Runtime maintenance
 
 - Keep the completed six-tool migration, protocol v3, and 64/64 Action coverage
   checks from drifting after the host/skill separation.

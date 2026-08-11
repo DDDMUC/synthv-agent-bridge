@@ -4,6 +4,8 @@ All notable changes will be documented in this file.
 
 ## Unreleased
 
+## 0.3.1 - 2026-08-12
+
 ### Fixed
 
 - Documented `fingerprint` guards as Context-filled instead of hand-copied.
@@ -16,6 +18,9 @@ All notable changes will be documented in this file.
   object (issue #8.2).
 - Described the `sv_describe.action` parameter that returns one just-in-time
   action schema (issue #8.3).
+- Corrected the `edit_notes` and `delete_notes` action-schema guidance so one
+  fresh write-intent Context can serve disjoint batches instead of directing
+  Agents to refresh it unconditionally between batches.
 
 ### Changed
 
