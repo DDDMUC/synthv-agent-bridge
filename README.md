@@ -33,7 +33,7 @@ The bridge uses Synthesizer V's public Lua scripting API. It does **not** parse 
 > changing Vocals, capture the new Vocal's complete panel or type all of its
 > singing-style names again; do not reuse the previous Vocal's list.
 
-> Status: **v0.3.0 / protocol v3 (reduced-stable surface)**. This release separates
+> Status: **v0.3.1 / protocol v3 (reduced-stable surface)**. This release separates
 > the host-neutral Runtime from portable Agent skills while keeping the six-tool semantic Facade,
 > typed Query Contexts, compact Command outcomes, component build-coherence
 > checks, Query Projector, common Command Kernel, semantic write-policy

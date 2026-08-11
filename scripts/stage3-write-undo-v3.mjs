@@ -102,7 +102,7 @@ async function openClient() {
     stderr: "pipe",
   });
   const client = new Client(
-    { name: "synthv-agent-stage3-write-undo", version: "0.3.0" },
+    { name: "synthv-agent-stage3-write-undo", version: "0.3.1" },
     { capabilities: {} },
   );
   await client.connect(transport);
