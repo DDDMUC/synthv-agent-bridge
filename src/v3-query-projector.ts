@@ -247,6 +247,23 @@ function compactPhraseNotes(root: JsonRecord): void {
   }
 }
 
+function compactTrackNoteGroups(
+  root: JsonRecord,
+  dense: "auto" | "never" | "always",
+): void {
+  if (!Array.isArray(root.groups)) {
+    return;
+  }
+  for (const value of root.groups) {
+    const group = optionalRecord(value);
+    if (group === undefined) {
+      continue;
+    }
+    compactPhraseNotes(group);
+    denseNotes(group, dense);
+  }
+}
+
 function stripDiagnostics(root: JsonRecord, preserveComputedPending = false): void {
   for (const field of DIAGNOSTIC_FIELDS) {
     if (
@@ -321,6 +338,26 @@ function projectFields(root: JsonRecord, fields: readonly string[]): JsonRecord 
   return projected;
 }
 
+const PROJECTION_WARNING_FIELD_SAMPLE = 24;
+
+function fieldProjectionWarning(
+  root: JsonRecord,
+  requested: readonly string[],
+): JsonRecord | undefined {
+  if (requested.some((field) => owns(root, field))) {
+    return undefined;
+  }
+  const available = Object.keys(root)
+    .filter((field) => !field.startsWith("_"))
+    .slice(0, PROJECTION_WARNING_FIELD_SAMPLE);
+  return {
+    projectionWarning:
+      "No requested field exists on the result root, so only envelope fields remain. fields filters top-level keys only; nested collections such as groups[].notes are not column-filtered. Drop fields, or request one of availableFields.",
+    requestedFields: [...requested],
+    availableFields: available,
+  };
+}
+
 export interface QueryProjectionOptions {
   readonly include?: readonly string[];
   readonly fields?: readonly string[];
@@ -350,6 +387,9 @@ export function projectQueryResult(
     projectIncludes(root, options.include);
     compactPhraseNotes(root);
   }
+  if (action === "get_track_notes") {
+    compactTrackNoteGroups(root, options.dense);
+  }
   if (shouldStripDiagnostics(action, options.include, options.debug)) {
     stripDiagnostics(root, action === "get_computed_group_data");
   }
@@ -374,6 +414,12 @@ export function projectQueryResult(
     publicProjection,
     fields,
   );
+  if (options.fields !== undefined) {
+    const warning = fieldProjectionWarning(root, options.fields);
+    if (warning !== undefined) {
+      Object.assign(publicProjection, warning);
+    }
+  }
   return {
     publicProjection,
     strategy: policy.strategy,
@@ -413,8 +459,10 @@ export function enforceQueryResponseBudget(
 
 export const queryProjectorTesting = {
   compactPhraseNotes,
+  compactTrackNoteGroups,
   defaultReadFields: (action: string): readonly string[] | undefined =>
     DEFAULT_READ_FIELDS[action],
+  fieldProjectionWarning,
   denseNotes,
   projectFields,
   projectIncludes,
