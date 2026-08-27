@@ -121,6 +121,55 @@ test("v3 exposes six semantic tools under a 6 KB metadata budget", async () => {
     )?.properties;
     assert.ok(describeProperties?.action !== undefined);
     assert.equal(describeProperties?.actions, undefined);
+    assert.match(
+      JSON.stringify(describeProperties?.action),
+      /Action name returned by sv_describe/u,
+    );
+
+    const query = tools.tools.find((tool) => tool.name === "sv_query");
+    const queryProperties = (
+      query?.inputSchema as {
+        readonly properties?: Record<string, unknown>;
+      }
+    )?.properties;
+    assert.match(
+      JSON.stringify(queryProperties?.fields),
+      /Filters top-level keys of the result root only/u,
+    );
+
+    const editDescriptionResult = await client.callTool({
+      name: "sv_describe",
+      arguments: { action: "edit_notes" },
+    });
+    const editDescriptionContent = (
+      editDescriptionResult as {
+        readonly content: readonly {
+          readonly type: string;
+          readonly text?: string;
+        }[];
+      }
+    ).content;
+    const editDescriptionText = editDescriptionContent.find(
+      (entry) => entry.type === "text",
+    )?.text;
+    assert.ok(editDescriptionText);
+    const editDescription = JSON.parse(editDescriptionText) as {
+      readonly actions: readonly {
+        readonly inputSchema: {
+          readonly properties: {
+            readonly edits: { readonly description?: string };
+          };
+        };
+      }[];
+    };
+    const batchGuidance =
+      editDescription.actions[0]?.inputSchema.properties.edits.description;
+    assert.match(batchGuidance ?? "", /at or below 60 items/u);
+    assert.match(batchGuidance ?? "", /can serve multiple batches/u);
+    assert.doesNotMatch(
+      batchGuidance ?? "",
+      /refresh the contextId between batches/u,
+    );
 
     const statusTool = tools.tools.find((tool) => tool.name === "sv_status");
     const statusProperties = (

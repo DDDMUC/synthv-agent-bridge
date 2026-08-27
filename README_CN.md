@@ -11,19 +11,16 @@ Bridge 使用 Synthesizer V 公开的 Lua 脚本 API。它**不会**解析或重
 
 **视频演示：** [在哔哩哔哩观看 SynthV Agent Bridge 演示](https://www.bilibili.com/video/BV1kU3P6LEoF)
 
-> 第一次使用？请参阅[中文快速开始](docs/quickstart_cn.md)。环境检查、
-> 依赖与 Node.js 安装、构建、SynthV 脚本安装、MCP 注册和诊断等大部分
-> 工作都可以交给支持 MCP 的 Agent 完成；系统级安装可能需要用户授权。
-> English users: see the [Quickstart](docs/quickstart.md). An MCP-capable Agent
-> can handle most setup steps, including environment checks, dependency and
-> Node.js installation, the build, SynthV script installation, MCP registration,
-> and diagnostics.
+> 第一次使用？请参阅宿主中立的[中文快速开始](docs/quickstart_cn.md)，再选择
+> [Codex](docs/hosts/codex.md) 或
+> [Claude Code](docs/hosts/claude-code.md) 项目配置。环境检查、依赖与 Node.js
+> 安装、构建、SynthV 脚本安装和核心诊断都不依赖具体 Agent 宿主。
+> English users: see the host-neutral [Quickstart](docs/quickstart.md).
 
 > [!TIP]
-> 第一次连接？回复 **`运行《小星星》Demo。`** Agent 会用简短小标题说明每个
-> 阶段，创建包含 42 个音符的独立 Demo Group；中途只需选择它的 Vocal 并
-> 提供全部准确唱法名称，随后会自动完成调音、回读验证和循环播放。Demo
-> 不修改工程原有内容。详见[引导式 Demo](docs/twinkle-star-demo_cn.md)。
+> 可选《小星星》引导式 Demo 与 Agent 操作规则已迁移到独立的
+> [`synthv-copilot` 技能插件](https://github.com/SynthVCopilot/SKILLS)。
+> Runtime 仓库不再携带启动提示或强制 Agent 工作流。
 
 > [!IMPORTANT]
 > 由于 SynthV 官方脚本 API 无法读取当前 Vocal 身份，也无法枚举从未调整、
@@ -37,7 +34,8 @@ Bridge 使用 Synthesizer V 公开的 Lua 脚本 API。它**不会**解析或重
 > 的完整唱法面板，或重新输入它的全部唱法名称，不能沿用上一个 Vocal 的
 > 列表。
 
-> 状态：**v0.2.0／协议 v3（收缩后的稳定能力面）**。六工具语义入口、类型化 Query
+> 状态：**v0.3.1／协议 v3（收缩后的稳定能力面）**。本版把宿主中立 Runtime
+> 与可移植 Agent 技能拆开，同时保持六工具语义入口、类型化 Query
 > Context、紧凑 Command 结果、组件构建一致性检查、统一命令内核和全部
 > 私有操作迁移已经完成。发布验证已有 17/17 Query、9/9 UI
 > 和 31/38 写 Action 已有当前构建真机证据；7 条发生原生宿主风险的
@@ -49,11 +47,6 @@ Bridge 使用 Synthesizer V 公开的 Lua 脚本 API。它**不会**解析或重
 参阅 [v3 架构](docs/architecture-v3.md)、
 [开发计划](docs/v3-development-plan.md)和
 [SV2 API 覆盖矩阵](docs/sv2-api-coverage-v3.md)。
-
-仓库内置面向 Agent 的技能包
-[skill/synthv-bridge-skill](skill/synthv-bridge-skill/SKILL.md)，支持技能的
-客户端可以加载它了解工具、操作目录和数据模型。与 SV Harmony API 的字段级
-兼容情况记录在 [docs/harmony-alignment.md](docs/harmony-alignment.md)。
 
 ## 功能
 
@@ -142,7 +135,7 @@ Solid、Sweet。
 ## 架构
 
 ```text
-        本地 stdio MCP 客户端
+Codex / Claude Code / 其他本地 stdio MCP 宿主
                     │
                     │ 基于 stdio 的 MCP
                     ▼
@@ -168,15 +161,16 @@ Solid、Sweet。
 
 - Synthesizer V Studio **2 Pro 2.1.2 或更高版本**。
 - Node.js **20.10 或更高版本**。
-- 支持本地 stdio 服务器的 MCP 客户端。
+- 支持本地 stdio 服务器的 MCP 宿主；仓库同时维护 Codex 与 Claude Code 项目配置。
 
 本项目面向 Synthesizer V Studio 2 Pro 的脚本环境，不支持 Basic 版。
 
 ## 安装
 
 新用户可以按照完整的[中文快速开始](docs/quickstart_cn.md)操作；英文版见
-[Quickstart](docs/quickstart.md)。其中包含拉取仓库、由 Agent 协助配置
-Node.js、安装脚本、注册 MCP、验证连接和第一次受保护调音修改。
+[Quickstart](docs/quickstart.md)。其中包含拉取仓库、配置 Node.js、安装脚本、
+按宿主注册 MCP 和验证连接。Agent 技能与引导式音乐工作流从
+[`SynthVCopilot/SKILLS`](https://github.com/SynthVCopilot/SKILLS) 单独安装。
 
 ### 1. 构建 MCP 服务器
 
@@ -237,19 +231,16 @@ SynthV 运行期间，该脚本会保持活动并写入心跳。只停止 Bridge
 **中止所有正在运行的脚本**也会终止侧边栏本身，所以残留面板会冻结，状态和
 按钮都无法再更新；发生这种情况后请重新打开 SynthV。
 
-### 4. 连接 MCP 客户端
+### 4. 连接 MCP 宿主
 
-把构建产物注册为本地 **stdio** 服务器：
+两个正式适配都启动同一份 `node dist/src/cli.js` Runtime，并把注册限制在
+当前项目：
 
-```
-node /absolute/path/to/synthv-agent-bridge/dist/src/cli.js
-```
+- [Codex 配置](docs/hosts/codex.md)：`.codex/config.toml`
+- [Claude Code 配置](docs/hosts/claude-code.md)：`.mcp.json`
 
-首次启动请预留至少 120 秒，然后重启或重连该服务器，让客户端加载新构建。
-客户端支持项目级注册时优先使用，可避免修改全局配置文件。
-
-JSON 与 TOML 客户端的配置写法，以及临时目录分离的情况，见
-[examples/mcp-client-config.md](examples/mcp-client-config.md)。
+其它支持 **STDIO** 的本地 MCP 宿主也可使用同一命令。安装器和 Doctor
+都不会写入用户全局宿主配置。
 
 ### 可选的原生连接面板
 
@@ -394,6 +385,16 @@ Guard，会安全失败，而不会静默改换目标。`readOnly` Context 不�
 `get_note_phoneme_data`、`get_automation` 和 `sample_automation` 接受
 `responseMode: "compact"`。完整模式仍为默认值。
 
+- `get_track_notes` 在 `sv_query` 投影路径上会压缩嵌套的 `groups[].notes`：
+  丢弃同一位置的 blick/四分音符重复字段（`absoluteOnset`、`absoluteEnd`、
+  `absoluteEndSeconds`、`endPosition`、`onsetQuarters`、`durationQuarters`），
+  保留 Group 内的 `onset`/`duration` 与 `absoluteOnsetSeconds`/
+  `absoluteDurationSeconds`；单个 Group 达到 24 个音符时以 `{columns, rows}`
+  返回并标记 `noteFormat: "rows"`。音符守卫在投影前已捕获，`contextId` 仍然有效。
+- `sv_query.fields` 只过滤结果根对象的顶层 key。`groups[].notes` 这类嵌套集合
+  不参与列投影；传入音符字段名只会得到信封字段，外加一条 `projectionWarning`
+  列出根对象实际可用的 key。
+
 - 乐句调音前优先使用 `get_phrase_context`。没有显式作用域时，它可以在
   无需先读取选区的情况下定位当前钢琴卷帘 Group，并优先使用选中音符；
   一次请求即可组合紧凑音高/时值/音素音符、Group Voice/唱法（Vocal Mode）和
@@ -467,15 +468,18 @@ Setter。在不兼容宿主上真正修改模式，会在创建撤销记录前�
 
 ## 安全编辑工作流
 
-Agent 规则要求按以下顺序执行：
+任何 Agent 宿主执行受保护写入时都应按以下顺序：
 
 1. 乐句调音时，在编辑前立即调用 `get_phrase_context`。对于 Group Voice
    或唱法（Vocal Mode），调用不带定位器的 `get_group_voice`，以当前钢琴卷帘
    Group 为目标。V2 默认只返回参数、唱法、目标索引和 `contextId`；
    只有诊断时才请求完整字段。其他工作只读取拥有预期变更的对象。
 2. 展示或在内部构建一个小型、便于审核的变更。
-3. 复制最新适用的 Group/引用 UUID 和指纹、轨道指纹、自动化/时间轴指纹，
-   以及音符或 Smart Pitch 指纹。
+3. 沿用该次读取返回的 `contextId`（`contextMode: "writeIntent"`）。
+   Runtime 会从这个 Context 填入 Group/引用 UUID 和指纹、轨道指纹、
+   自动化/时间轴指纹以及音符或 Smart Pitch 守卫，因此一次音符编辑只需要
+   `noteIndex` 和 `changes`。只有在不带 `contextId` 写入时才需要手工复制
+   指纹；手工值与 Context 不一致会返回 `CONTEXT_SCOPE_MISMATCH`。
 4. 调用能完成目标的最小写入工具。Group 内容写入默认拒绝有多个引用的
    Note Group。只有确实要修改全部链接位置时，才使用
    `sharedGroupPolicy=allowAllReferences`，并同时提供刚读取的
@@ -487,6 +491,23 @@ Agent 规则要求按以下顺序执行：
 
 一次紧凑读取应支持一批完整的相关变更。如果只修改了 Group Voice，不要
 通过读取整个选区或整首歌曲来刷新 `contextId`。
+
+大批量编辑要分批，而不是一次拉满。`edit_notes` 和 `delete_notes` 每次调用
+最多接受 512 项，但这个上限只是协议边界：SynthV 2.2.1 在大批量音符写入下
+很脆弱，因此每次调用建议不超过约 60 项。
+
+一个 `writeIntent` `contextId` 可以服务多批写入。Context 对每个音符单独签发
+守卫，因此只要该批目标音符仍与读取时的指纹一致，写入就会成功。做法是：一次
+读取覆盖全部目标音符的页，然后用同一个 `contextId` 发送互不重叠的多批。
+
+以下两种情况必须重新读取：
+
+- Context 已经改过的音符会以 `STALE_NOTE` 和 `retry: query_again` 被拒绝，
+  再次修改同一个音符需要新的读取；
+- `add_notes` 或 `delete_notes` 会移动编辑位置之后的音符索引，所有被移动的
+  音符在旧 Context 下都会 `STALE_NOTE`。
+
+两种情况都在写入前失败，所以过于乐观的复用只会浪费一次调用，不会造成错误编辑。
 
 音符指纹包含 Group UUID、音符索引、起点、时值、音高、微调、歌词、音素、
 语言、音乐类型、音高模式、说唱重音、Retake 数量和音符属性。这可以防止
@@ -530,9 +551,10 @@ Node 服务器和 SynthV 脚本必须解析到**同一个物理 IPC 目录**。
 | 变量 | 默认值 | 含义 |
 |---|---:|---|
 | `SYNTHV_AGENT_BRIDGE_DIR` | 操作系统临时目录 | 共享 IPC 目录。 |
-| `SYNTHV_AGENT_BRIDGE_TIMEOUT_MS` | `15000` | 最大响应等待时间。 |
+| `SYNTHV_AGENT_BRIDGE_TIMEOUT_MS` | `30000` | 最大响应等待时间。默认值为冷启动的 SynthV 宿主处理首个请求留出余量。 |
 | `SYNTHV_AGENT_BRIDGE_POLL_MS` | `10` | Node 响应轮询间隔。 |
-| `SYNTHV_AGENT_BRIDGE_STALE_REQUEST_MS` | `30000` | 可恢复废弃请求文件和锁的时间阈值，必须大于响应超时。 |
+| `SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS` | `1000` | 客户端等待单写者锁多久后报 `BRIDGE_BUSY`，取值不超过响应超时。 |
+| `SYNTHV_AGENT_BRIDGE_STALE_REQUEST_MS` | `60000` | 可恢复废弃请求文件和锁的时间阈值，必须大于响应超时。 |
 | `SYNTHV_AGENT_BRIDGE_STATUS_STALE_MS` | `5000` | 仍视为已连接的最大心跳年龄。 |
 
 使用自定义 IPC 目录时，请在启动 SynthV 脚本前创建它。Node 进程也会创建
@@ -541,7 +563,7 @@ Node 服务器和 SynthV 脚本必须解析到**同一个物理 IPC 目录**。
 ### Windows 和 WSL
 
 SynthV 在 Windows 上运行时，最简单的配置是让 MCP 服务器使用
-**Windows Node.js**。客户端在 WSL 中运行时，请把 Node 指向 SynthV 默认
+**Windows Node.js**。MCP 宿主在 WSL 中运行时，请把 Node 指向 SynthV 默认
 使用的现有 Windows 临时目录：
 
 - SynthV/Windows：不设置 `SYNTHV_AGENT_BRIDGE_DIR`，使脚本使用 `%TEMP%`。
@@ -550,7 +572,7 @@ SynthV 在 Windows 上运行时，最简单的配置是让 MCP 服务器使用
 
 如果使用专用子目录，请先创建目录，并为两个进程设置等价的 Windows 和
 WSL 路径写法。SynthV GUI 必须继承 Windows 环境变量，所以修改后需要重启
-SynthV。MCP 服务器可以通过客户端服务器配置中的 `env` 块接收自己的值。
+SynthV。MCP 服务器可以通过宿主项目 MCP 配置中的环境变量表接收自己的值。
 
 ## 开发
 
@@ -576,13 +598,17 @@ Lua 文件，并通过模拟 SynthV 集成框架测试常驻 Bridge 和侧边栏
 npm run doctor -- --target "/Synthesizer V Studio 2/脚本目录"
 ```
 
-Doctor 会检查源码/安装版本、脚本准确内容、MCP 构建新鲜度、运行中 MCP 的
-能力指纹、Bridge 和 MCP 心跳、解析后的 IPC 目录以及残留处理/控制文件。
-添加 `--json` 可获得机器可读输出。它不会修改工程或已安装文件。
+Doctor 默认只检查宿主中立 Runtime 状态：源码/安装版本、脚本准确内容、
+MCP 构建新鲜度、运行中能力指纹、Bridge/MCP 心跳、解析后的 IPC 目录和残留
+处理/控制文件。用 `--host codex`、`--host claude` 或 `--host all` 才检查
+项目配置；添加 `--json` 可获得机器可读输出。Doctor 不读取或写入用户全局
+宿主设置，也不修改 SynthV 工程或安装文件。
 
 ## 当前限制
 
-- 同一时间只能有一个请求进行中。
+- 同一时间只能有一个请求进行中。第二个客户端会等待单写者锁最多
+  `SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS`（默认 1 秒），超时后返回 `BRIDGE_BUSY`。
+  两个宿主长期并行驱动 Bridge 仍不受支持。
 - 客户端超时具有不确定性：SynthV 可能仍会完成操作。处理标记会保留到
   Lua 宿主执行结束；Agent 应先读取当前工程，再决定是否重试写入。
 - 当前构建将 isolated Group clone、Note Group/Track/Track-shell clone、
@@ -618,8 +644,8 @@ Doctor 会检查源码/安装版本、脚本准确内容、MCP 构建新鲜度�
   只激活和删除默认 Take，或由自身生成并保存的 ID。
 - 表情预设是有意保持小型的构建块，不是乐句分析或发音质量评分工具。
 - Bridge 尚未在每一个 SynthV 2.x 补丁版本和每一个声库上验证。
-- 托管的网页版聊天客户端不能直接连接此本地 stdio 服务器。请使用本地 MCP
-  客户端；未来的远程适配器需要明确的身份验证和传输安全。
+- 只有能够启动可信本地 stdio 进程的聊天/Agent 界面才能直接连接；远程接入
+  需要另行设计带身份验证的传输适配器。
 
 参阅 [docs/roadmap.md](docs/roadmap.md)。
 

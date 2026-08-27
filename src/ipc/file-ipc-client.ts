@@ -178,7 +178,12 @@ export class FileIpcClient {
       createdAtEpochMs: Date.now(),
     });
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    // The bridge stays a single writer, but a competing client is usually only
+    // milliseconds ahead. Wait briefly instead of failing the caller outright.
+    const waitDeadlineMs = Date.now() + this.config.lockWaitMs;
+    let staleRecoveryAttempted = false;
+
+    for (;;) {
       try {
         const handle = await fs.open(this.config.paths.lockFile, "wx");
         try {
@@ -196,19 +201,29 @@ export class FileIpcClient {
         }
 
         const ageMs = (await fileAgeMs(this.config.paths.lockFile)) ?? 0;
-        if (ageMs > this.config.staleRequestMs && attempt === 0) {
+        if (ageMs > this.config.staleRequestMs && !staleRecoveryAttempted) {
+          staleRecoveryAttempted = true;
           await removeIfExists(this.config.paths.lockFile);
           continue;
         }
 
-        throw new BridgeBusyError(
-          "Another SynthV Agent Bridge request is already in progress.",
-          { lockFile: this.config.paths.lockFile, ageMs },
+        const remainingMs = waitDeadlineMs - Date.now();
+        if (remainingMs <= 0) {
+          throw new BridgeBusyError(
+            "Another SynthV Agent Bridge request is already in progress.",
+            {
+              lockFile: this.config.paths.lockFile,
+              ageMs,
+              waitedMs: this.config.lockWaitMs,
+            },
+          );
+        }
+
+        await sleep(
+          Math.min(Math.max(this.config.pollIntervalMs, 20), remainingMs),
         );
       }
     }
-
-    throw new BridgeBusyError("Unable to acquire the bridge IPC lock.");
   }
 
   private async prepareChannel(): Promise<void> {

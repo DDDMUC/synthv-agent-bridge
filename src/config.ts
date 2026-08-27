@@ -3,7 +3,7 @@ import path from "node:path";
 
 export const PROTOCOL_VERSION = 3 as const;
 export const SERVER_NAME = "synthv-agent-bridge";
-export const SERVER_VERSION = "0.2.0";
+export const SERVER_VERSION = "0.3.1";
 
 export interface BridgePaths {
   readonly directory: string;
@@ -24,6 +24,7 @@ export interface BridgeConfig {
   readonly paths: BridgePaths;
   readonly timeoutMs: number;
   readonly pollIntervalMs: number;
+  readonly lockWaitMs: number;
   readonly staleRequestMs: number;
   readonly statusStaleMs: number;
 }
@@ -55,9 +56,11 @@ export function loadConfig(
   );
   const prefix = path.join(directory, SERVER_NAME);
 
+  // A cold SynthV host loads the Lua executor and initializes the IPC directory
+  // on the first request, which regularly costs more than a warm round trip.
   const timeoutMs = positiveInteger(
     env.SYNTHV_AGENT_BRIDGE_TIMEOUT_MS,
-    15_000,
+    30_000,
     "SYNTHV_AGENT_BRIDGE_TIMEOUT_MS",
   );
   const pollIntervalMs = positiveInteger(
@@ -65,9 +68,14 @@ export function loadConfig(
     10,
     "SYNTHV_AGENT_BRIDGE_POLL_MS",
   );
+  const lockWaitMs = positiveInteger(
+    env.SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS,
+    1_000,
+    "SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS",
+  );
   const staleRequestMs = positiveInteger(
     env.SYNTHV_AGENT_BRIDGE_STALE_REQUEST_MS,
-    30_000,
+    60_000,
     "SYNTHV_AGENT_BRIDGE_STALE_REQUEST_MS",
   );
   const statusStaleMs = positiveInteger(
@@ -100,6 +108,8 @@ export function loadConfig(
     },
     timeoutMs,
     pollIntervalMs,
+    // Waiting for the single-writer lock must never outlast the request itself.
+    lockWaitMs: Math.min(lockWaitMs, timeoutMs),
     staleRequestMs,
     statusStaleMs,
   };

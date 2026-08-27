@@ -280,3 +280,56 @@ test("getStatus distinguishes fresh and stale heartbeats", async (context) => {
   assert.equal(stale.connected, false);
   assert.equal(stale.fresh, false);
 });
+
+test("a competing client waits briefly for the single-writer lock", async (context) => {
+  const fixture = await createFixture({
+    SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS: "1000",
+  });
+  context.after(async () =>
+    fs.rm(fixture.directory, { recursive: true, force: true }),
+  );
+
+  await fs.mkdir(fixture.config.paths.directory, { recursive: true });
+  await fs.writeFile(
+    fixture.config.paths.lockFile,
+    JSON.stringify({ requestId: "other", pid: 1, createdAtEpochMs: Date.now() }),
+    "utf8",
+  );
+
+  const bridge = serveRequests(fixture.config, 1, (request) =>
+    successResponse(request, { waited: true }),
+  );
+  const pending = fixture.client.send<{ waited: boolean }>("ping");
+
+  await sleep(120);
+  await fs.rm(fixture.config.paths.lockFile, { force: true });
+
+  const result = await pending;
+  await bridge;
+
+  assert.equal(result.waited, true);
+});
+
+test("the single-writer lock still fails closed after its wait deadline", async (context) => {
+  const fixture = await createFixture({
+    SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS: "150",
+  });
+  context.after(async () =>
+    fs.rm(fixture.directory, { recursive: true, force: true }),
+  );
+
+  await fs.mkdir(fixture.config.paths.directory, { recursive: true });
+  await fs.writeFile(
+    fixture.config.paths.lockFile,
+    JSON.stringify({ requestId: "other", pid: 1, createdAtEpochMs: Date.now() }),
+    "utf8",
+  );
+
+  const startedAtMs = Date.now();
+  await assert.rejects(
+    fixture.client.send("ping"),
+    (error: unknown) => error instanceof BridgeBusyError,
+  );
+  assert.ok(Date.now() - startedAtMs >= 100);
+  await fs.access(fixture.config.paths.lockFile);
+});

@@ -8,20 +8,17 @@ The bridge uses Synthesizer V's public Lua scripting API. It does **not** parse 
 
 **Video demo:** [Watch SynthV Agent Bridge on Bilibili](https://www.bilibili.com/video/BV1kU3P6LEoF)
 
-> New here? Follow the [Quickstart](docs/quickstart.md). An MCP-capable Agent
-> can handle most setup steps for you, including environment checks, Node.js
-> installation when permitted, dependency installation, the build, SynthV script
-> installation, MCP registration, and diagnostics.
+> New here? Follow the host-neutral [Quickstart](docs/quickstart.md), then choose
+> the [Codex](docs/hosts/codex.md) or
+> [Claude Code](docs/hosts/claude-code.md) project profile.
 > 中文用户请参阅[中文快速开始](docs/quickstart_cn.md)；环境检查、依赖与
-> Node.js 安装、构建、SynthV 脚本安装、MCP 注册和诊断等大部分工作都可以
-> 交给支持 MCP 的 Agent 完成。
+> Node.js 安装、构建、SynthV 脚本安装与诊断均不依赖具体 Agent 宿主。
 
 > [!TIP]
-> First connection? Reply **`Run the Twinkle Star demo.`** The Agent will explain
-> each stage with a short heading, create an isolated 42-note Demo Group, pause
-> once for you to select its Vocal and provide every exact Vocal Mode name,
-> then automatically tune, verify, and loop the song. Existing project material
-> is not modified. See the [guided Demo](docs/twinkle-star-demo.md).
+> The optional guided Twinkle Star demo and Agent operating rules are now
+> maintained in the separate
+> [`synthv-copilot` skill plugin](https://github.com/SynthVCopilot/SKILLS).
+> This Runtime repository contains no startup prompt or mandatory Agent workflow.
 
 > [!IMPORTANT]
 > Because SynthV's official scripting API cannot read the current Vocal
@@ -36,7 +33,8 @@ The bridge uses Synthesizer V's public Lua scripting API. It does **not** parse 
 > changing Vocals, capture the new Vocal's complete panel or type all of its
 > singing-style names again; do not reuse the previous Vocal's list.
 
-> Status: **v0.2.0 / protocol v3 (reduced-stable surface)**. The six-tool semantic Facade,
+> Status: **v0.3.1 / protocol v3 (reduced-stable surface)**. This release separates
+> the host-neutral Runtime from portable Agent skills while keeping the six-tool semantic Facade,
 > typed Query Contexts, compact Command outcomes, component build-coherence
 > checks, Query Projector, common Command Kernel, semantic write-policy
 > catalog, aggregate tuning, and dependent transaction recovery are
@@ -52,12 +50,6 @@ The bridge uses Synthesizer V's public Lua scripting API. It does **not** parse 
 See the [v3 architecture](docs/architecture-v3.md),
 [development plan](docs/v3-development-plan.md), and
 [SV2 API coverage matrix](docs/sv2-api-coverage-v3.md).
-
-An Agent-facing skill package is bundled at
-[skill/synthv-bridge-skill](skill/synthv-bridge-skill/SKILL.md); clients that
-support skills can load it to learn the tools, action catalog, and data model.
-Field-level compatibility with the SV Harmony API is recorded in
-[docs/harmony-alignment.md](docs/harmony-alignment.md).
 
 ## What it can do
 
@@ -159,7 +151,7 @@ panel.
 ## Architecture
 
 ```text
-     Local stdio MCP client
+Codex / Claude Code / another local stdio MCP host
                     │
                     │ MCP over stdio
                     ▼
@@ -185,7 +177,7 @@ notes through the same guarded Lua `add_notes` path. It never parses `.svp`.
 
 - Synthesizer V Studio **2 Pro 2.1.2 or later**.
 - Node.js **20.10 or later**.
-- An MCP client that supports local stdio servers.
+- An MCP host that supports local stdio servers. Codex and Claude Code have maintained project profiles in this repository.
 
 This project targets the scripting environment in Synthesizer V Studio 2 Pro; it does not target the Basic edition.
 
@@ -193,8 +185,9 @@ This project targets the scripting environment in Synthesizer V Studio 2 Pro; it
 
 New users can follow the end-to-end [Quickstart](docs/quickstart.md) or
 [中文快速开始](docs/quickstart_cn.md). It covers cloning the repository,
-Agent-assisted Node.js setup, script installation, MCP registration, connection
-verification, and the first guarded tuning edit.
+Node.js setup, script installation, host-specific MCP registration, and
+connection verification. Agent skills and guided musical workflows are installed
+separately from [`SynthVCopilot/SKILLS`](https://github.com/SynthVCopilot/SKILLS).
 
 ### 1. Build the MCP server
 
@@ -260,21 +253,16 @@ alive and shows `B offline`. SynthV's **Abort All Running Scripts** also stops
 the side panel itself, so the already-rendered panel freezes and neither its
 status nor its buttons can update. Reopen SynthV afterward to restore it.
 
-### 4. Connect an MCP client
+### 4. Connect an MCP host
 
-Register the built server as a local **stdio** server:
+Both maintained adapters launch the same `node dist/src/cli.js` Runtime and keep
+registration scoped to this project:
 
-```
-node /absolute/path/to/synthv-agent-bridge/dist/src/cli.js
-```
+- [Codex profile](docs/hosts/codex.md): `.codex/config.toml`
+- [Claude Code profile](docs/hosts/claude-code.md): `.mcp.json`
 
-Allow at least 120 s for the first launch, then restart or reconnect the server
-so the client picks up the build. Prefer a project-scoped registration when the
-client supports one; it avoids editing a global configuration file.
-
-Configuration shapes for JSON and TOML clients, plus the split temporary
-directory case, are in
-[examples/mcp-client-config.md](examples/mcp-client-config.md).
+Other local MCP hosts can use the same command when they support **STDIO**
+servers. No installer or Doctor command writes user-global host configuration.
 
 ### Optional native connection panel
 
@@ -431,6 +419,19 @@ All track, group, and note indices are **1-based**, matching the SynthV Lua API.
 `get_note_phoneme_data`, `get_automation`, and `sample_automation` accept
 `responseMode: "compact"`. Full mode remains the default.
 
+- `get_track_notes` compacts its nested `groups[].notes` on the `sv_query`
+  projection path. Blick and quarter duplicates of the same position
+  (`absoluteOnset`, `absoluteEnd`, `absoluteEndSeconds`, `endPosition`,
+  `onsetQuarters`, `durationQuarters`) are dropped in favor of group-local
+  `onset`/`duration` plus `absoluteOnsetSeconds`/`absoluteDurationSeconds`, and
+  a group of 24 or more notes is returned as `{columns, rows}` with
+  `noteFormat: "rows"`. Note guards are captured before projection, so
+  `contextId` stays valid.
+- `sv_query.fields` filters top-level keys of the result root only. Nested
+  collections such as `groups[].notes` are not column-filtered; asking for note
+  field names returns just the envelope plus a `projectionWarning` listing the
+  root keys that were actually available.
+
 - Prefer `get_phrase_context` before phrase tuning. It can locate the current
   piano-roll Group without a prior selection call, prefers selected notes when
   no explicit scope is supplied, and combines compact pitch/timing/phoneme
@@ -516,7 +517,7 @@ false success.
 
 ## Safe editing workflow
 
-The Agent rules require this sequence:
+Any Agent host performing a guarded write should use this sequence:
 
 1. For phrase tuning, call `get_phrase_context` immediately before editing.
    For Group Voice or Vocal Modes, call `get_group_voice` with no locator to
@@ -525,7 +526,13 @@ The Agent rules require this sequence:
    for diagnostics. For other work, read only the object that owns the intended
    change.
 2. Present or internally construct a small, reviewable change.
-3. Copy the latest applicable group/reference UUIDs and fingerprints, track fingerprint, automation/time-axis fingerprint, and note or Smart Pitch fingerprints.
+3. Reuse the `contextId` from that read with `contextMode: "writeIntent"`.
+   The Runtime fills the group/reference UUIDs and fingerprints, track
+   fingerprint, automation/time-axis fingerprint, and note or Smart Pitch
+   guards from that Context, so a note edit needs only `noteIndex` and its
+   `changes`. Copy guards by hand only when writing without a `contextId`; a
+   copied value that disagrees with the Context fails with
+   `CONTEXT_SCOPE_MISMATCH`.
 4. Call the smallest write tool that completes the intended change. Group
    content writes reject a multiply referenced Note Group by default. Use
    `sharedGroupPolicy=allowAllReferences` only when changing every linked
@@ -541,6 +548,26 @@ The Agent rules require this sequence:
 One compact read should feed one complete batch of related changes. Do not
 refresh `contextId` by reading the whole selection or song when only Group
 Voice changed.
+
+Large edits stay batched rather than maximal. `edit_notes` and `delete_notes`
+accept up to 512 items per call, but that ceiling is a protocol bound: SynthV
+2.2.1 is fragile with large note batches, so keep each call at or below roughly
+60 items.
+
+One `writeIntent` `contextId` can serve several of those batches. A Context
+guards each note individually, so a batch succeeds while every note it targets
+still matches the fingerprint that read captured. Read one page that covers all
+target notes, then send disjoint batches from that single `contextId`.
+
+Read again when a guard can no longer be fresh:
+
+- a note the Context already changed is rejected with `STALE_NOTE` and
+  `retry: query_again`, so re-touching a note needs a new read;
+- `add_notes` or `delete_notes` shifts the indices after the edited position,
+  and every shifted note fails `STALE_NOTE` against the older Context.
+
+Both cases fail before any write, so an over-optimistic reuse costs a rejected
+call rather than a wrong edit.
 
 A note fingerprint includes the group UUID, note index, onset, duration, pitch, detune, lyrics, phonemes, language, musical type, pitch mode, rap accent, retake count, and note attributes. This prevents an agent from applying an old plan to a note that the user has already changed.
 
@@ -583,21 +610,22 @@ The Node server and SynthV script must resolve the **same physical IPC directory
 | Variable | Default | Meaning |
 |---|---:|---|
 | `SYNTHV_AGENT_BRIDGE_DIR` | OS temporary directory | Shared IPC directory. |
-| `SYNTHV_AGENT_BRIDGE_TIMEOUT_MS` | `15000` | Maximum response wait. |
+| `SYNTHV_AGENT_BRIDGE_TIMEOUT_MS` | `30000` | Maximum response wait. The default leaves room for a cold SynthV host answering its first request. |
 | `SYNTHV_AGENT_BRIDGE_POLL_MS` | `10` | Node response polling interval. |
-| `SYNTHV_AGENT_BRIDGE_STALE_REQUEST_MS` | `30000` | Age at which abandoned request files and locks can be recovered. Must be greater than the response timeout. |
+| `SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS` | `1000` | How long a client waits for the single-writer lock before reporting `BRIDGE_BUSY`. Clamped to the response timeout. |
+| `SYNTHV_AGENT_BRIDGE_STALE_REQUEST_MS` | `60000` | Age at which abandoned request files and locks can be recovered. Must be greater than the response timeout. |
 | `SYNTHV_AGENT_BRIDGE_STATUS_STALE_MS` | `5000` | Maximum heartbeat age considered connected. |
 
 When a custom IPC directory is used, create it before starting the SynthV script. The Node process also creates the directory, but the documented startup order starts SynthV first.
 
 ### Windows and WSL
 
-The simplest setup is to run the MCP server with **Windows Node.js** when SynthV runs on Windows. When the client runs inside WSL, point Node at the existing Windows temporary directory that SynthV uses by default:
+The simplest setup is to run the MCP server with **Windows Node.js** when SynthV runs on Windows. When the MCP host runs inside WSL, point Node at the existing Windows temporary directory that SynthV uses by default:
 
 - SynthV/Windows: leave `SYNTHV_AGENT_BRIDGE_DIR` unset so the script uses `%TEMP%`.
 - Node/WSL: set `SYNTHV_AGENT_BRIDGE_DIR=/mnt/c/Users/you/AppData/Local/Temp`.
 
-For a dedicated subdirectory, create it first and set equivalent Windows and WSL path spellings for the two processes. The SynthV GUI must inherit its Windows environment variable, so restart SynthV after changing it. The MCP server can receive its own value through the `env` block in the client's server configuration.
+For a dedicated subdirectory, create it first and set equivalent Windows and WSL path spellings for the two processes. The SynthV GUI must inherit its Windows environment variable, so restart SynthV after changing it. The MCP server can receive its own value through the host project's MCP environment configuration.
 
 ## Development
 
@@ -624,15 +652,20 @@ For a local installation and connection report, run:
 npm run doctor -- --target "/path/to/Synthesizer V Studio 2/scripts"
 ```
 
-The doctor checks source/installed versions and exact script contents, compiled
-MCP freshness, the running MCP capability fingerprint, Bridge and MCP
-heartbeats, the resolved IPC directory, and residual processing/control files.
-Add `--json` for machine-readable output. It never modifies the project or
-installed files.
+The default Doctor checks only host-neutral Runtime state: source/installed
+versions and exact script contents, compiled MCP freshness, running capability
+fingerprints, Bridge/MCP heartbeats, the resolved IPC directory, and residual
+processing/control files. Add `--host codex`, `--host claude`, or `--host all`
+to validate project profiles; add `--json` for machine-readable output. Doctor
+never reads or writes user-global host settings, the SynthV project, or installed
+files.
 
 ## Current limitations
 
-- One request may be in flight at a time.
+- One request may be in flight at a time. A second client waits up to
+  `SYNTHV_AGENT_BRIDGE_LOCK_WAIT_MS` (1 s by default) for the single-writer
+  lock and then reports `BRIDGE_BUSY`. Sustained parallel driving of the bridge
+  from two hosts is still unsupported.
 - A client-side timeout is ambiguous: SynthV may still finish the operation. The processing marker remains until the Lua host completes, and the agent should read the current project before deciding whether to retry a write.
 - The current build classifies isolated Group clone, Note Group/Track/
   Track-shell clone, harmony Track, and transaction apply/rollback as
@@ -669,7 +702,7 @@ installed files.
 - Expression presets are intentionally small building blocks, not phrase
   analysis or pronunciation-quality scoring.
 - The bridge has not yet been validated against every SynthV 2.x patch and every voice database.
-- Hosted web chat clients do not connect directly to this local stdio server. Use a local MCP client; a future remote adapter would need explicit authentication and transport security.
+- A chat surface must be able to launch a trusted local stdio process to connect directly. Remote access would require a separate authenticated transport adapter.
 
 See [docs/roadmap.md](docs/roadmap.md).
 

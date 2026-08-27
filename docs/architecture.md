@@ -7,7 +7,7 @@
 ## Components
 
 ```text
-MCP client (local stdio)
+MCP client (compatible local stdio host)
                  │ stdio MCP
                  ▼
        TypeScript MCP server

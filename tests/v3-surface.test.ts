@@ -1053,3 +1053,111 @@ test("v3 dense rows preserve every note field", () => {
     rows: notes.map((note) => [note.noteIndex, note.lyrics, note.pitch]),
   });
 });
+
+test("v3 track note reads compact and densify nested group notes", () => {
+  const makeNote = (index: number) => ({
+    noteIndex: index,
+    fingerprint: `note-${index}`,
+    onset: index * 100,
+    duration: 100,
+    endPosition: index * 100 + 100,
+    pitch: 60,
+    lyrics: `词${index}`,
+    absoluteOnset: 1000 + index * 100,
+    absoluteEnd: 1100 + index * 100,
+    onsetQuarters: index,
+    durationQuarters: 1,
+    absoluteOnsetSeconds: index * 0.5,
+    absoluteEndSeconds: index * 0.5 + 0.5,
+    absoluteDurationSeconds: 0.5,
+  });
+  const result: Record<string, unknown> = {
+    track: { trackIndex: 1 },
+    groups: [
+      { groupIndex: 1, notes: Array.from({ length: 24 }, (_, i) => makeNote(i + 1)) },
+    ],
+  };
+
+  v2Testing.compactTrackNoteGroups(result, "auto");
+
+  const group = (result.groups as Record<string, unknown>[])[0];
+  assert.ok(group);
+  assert.equal(group.noteFormat, "rows");
+  const notes = group.notes as { columns: string[]; rows: unknown[][] };
+  assert.equal(notes.rows.length, 24);
+  for (const dropped of [
+    "absoluteOnset",
+    "absoluteEnd",
+    "absoluteEndSeconds",
+    "endPosition",
+    "onsetQuarters",
+    "durationQuarters",
+  ]) {
+    assert.equal(notes.columns.includes(dropped), false, dropped);
+  }
+  for (const kept of [
+    "noteIndex",
+    "fingerprint",
+    "onset",
+    "duration",
+    "pitch",
+    "lyrics",
+    "absoluteOnsetSeconds",
+    "absoluteDurationSeconds",
+  ]) {
+    assert.equal(notes.columns.includes(kept), true, kept);
+  }
+});
+
+test("v3 field projection warns instead of returning a silent empty result", () => {
+  const root = {
+    track: { trackIndex: 1 },
+    groups: [{ groupIndex: 1, notes: [] }],
+    page: { offset: 0, limit: 64 },
+  };
+
+  const missed = v2Testing.fieldProjectionWarning(root, ["noteIndex", "lyrics"]);
+  assert.ok(missed);
+  assert.match(String(missed.projectionWarning), /top-level keys only/);
+  assert.deepEqual(missed.requestedFields, ["noteIndex", "lyrics"]);
+  assert.deepEqual(missed.availableFields, ["track", "groups", "page"]);
+
+  assert.equal(
+    v2Testing.fieldProjectionWarning(root, ["groups"]),
+    undefined,
+  );
+});
+
+test("v3 note guards fail closed in TypeScript without a Context", () => {
+  const contexts = new V2ContextStore();
+
+  assert.throws(
+    () =>
+      v2Testing.expandContext(
+        "edit_notes",
+        {
+          trackIndex: 1,
+          groupIndex: 1,
+          edits: [{ noteIndex: 4, changes: { lyrics: "啊" } }],
+        },
+        undefined,
+        contexts,
+      ),
+    /edits\[1\]\.fingerprint is required without a writeIntent contextId/,
+  );
+
+  assert.doesNotThrow(() =>
+    v2Testing.expandContext(
+      "edit_notes",
+      {
+        trackIndex: 1,
+        groupIndex: 1,
+        edits: [
+          { noteIndex: 4, fingerprint: "note-4", changes: { lyrics: "啊" } },
+        ],
+      },
+      undefined,
+      contexts,
+    ),
+  );
+});
