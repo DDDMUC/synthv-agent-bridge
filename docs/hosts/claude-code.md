@@ -27,7 +27,7 @@ server when prompted. The repository does not write user-global Claude settings.
 Validate the adapter statically:
 
 ```powershell
-npm run doctor -- --host claude
+npm run doctor -- --host profiles
 ```
 
 This confirms the project profile, not Claude's authenticated clean-session tool

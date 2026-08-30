@@ -97,9 +97,8 @@ npm run doctor -- --target "C:\SynthV脚本目录"
 需要时再检查项目级宿主配置，不读取全局设置：
 
 ```powershell
-npm run doctor -- --host codex
-npm run doctor -- --host claude
-npm run doctor -- --host all --json
+npm run doctor -- --host profiles
+npm run doctor -- --host profiles --json
 ```
 
 Doctor 检查编译产物新鲜度、组件版本/构建身份、文件 IPC 可访问性、当前
