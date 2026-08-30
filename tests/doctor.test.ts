@@ -22,7 +22,7 @@ type DoctorCheck = {
 function runDoctor(
   ipcDirectory: string,
   target?: string,
-  host: "core" | "codex" | "claude" | "all" = "core",
+  host: "core" | "profiles" | "all" = "core",
 ): {
   readonly status: number | null;
   readonly checks: DoctorCheck[];
@@ -96,14 +96,77 @@ test("doctor accepts a fresh MCP capability fingerprint", async () => {
   }
 });
 
-test("doctor validates both project-scoped host profiles on request", async () => {
+// Profiles are routinely emptied in a working tree to stop a client from
+// auto-launching a stale build. That local state once made this test look like
+// a real regression (docs/issue-8-fix-and-verification-2026-08-11.zh-CN.md), so
+// locally modified profiles are reported and skipped instead of asserted. CI
+// checks out clean, so nothing is skipped there.
+function locallyModifiedPaths(): ReadonlySet<string> {
+  const result = spawnSync("git", ["diff", "--name-only", "HEAD"], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  });
+  if (result.status !== 0 || typeof result.stdout !== "string") {
+    return new Set();
+  }
+  return new Set(
+    result.stdout
+      .split(/\r?\n/u)
+      .map((line) => line.trim())
+      .filter((line) => line !== ""),
+  );
+}
+
+test("doctor discovers and validates every committed project profile", async () => {
   const ipcDirectory = await mkdtemp(
     path.join(os.tmpdir(), "synthv-doctor-host-profiles-"),
   );
   try {
     const result = runDoctor(ipcDirectory, undefined, "all");
-    assert.equal(check(result.checks, "codex-project-config").status, "ok");
-    assert.equal(check(result.checks, "claude-project-config").status, "ok");
+    const profiles = result.checks.filter((candidate) =>
+      candidate.name.startsWith("project-profile:"),
+    );
+    assert.ok(
+      profiles.length > 0,
+      "doctor discovered no project profiles at all",
+    );
+
+    const modified = locallyModifiedPaths();
+    let asserted = 0;
+    for (const profile of profiles) {
+      const profilePath = profile.name.slice("project-profile:".length);
+      if (modified.has(profilePath)) {
+        console.log(`skipping locally modified profile ${profilePath}`);
+        continue;
+      }
+      assert.equal(
+        profile.status,
+        "ok",
+        `${profile.name} does not launch the canonical entry point`,
+      );
+      asserted += 1;
+    }
+    assert.ok(
+      asserted > 0 || modified.size > 0,
+      "no project profile could be validated",
+    );
+  } finally {
+    await rm(ipcDirectory, { recursive: true, force: true });
+  }
+});
+
+test("doctor keeps project profiles out of the default core run", async () => {
+  const ipcDirectory = await mkdtemp(
+    path.join(os.tmpdir(), "synthv-doctor-core-only-"),
+  );
+  try {
+    const result = runDoctor(ipcDirectory);
+    assert.equal(
+      result.checks.some((candidate) =>
+        candidate.name.startsWith("project-profile:"),
+      ),
+      false,
+    );
   } finally {
     await rm(ipcDirectory, { recursive: true, force: true });
   }

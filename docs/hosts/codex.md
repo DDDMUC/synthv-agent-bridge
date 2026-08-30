@@ -24,7 +24,7 @@ Codex configuration is required or modified.
 Validate the adapter without inspecting global settings:
 
 ```powershell
-npm run doctor -- --host codex
+npm run doctor -- --host profiles
 ```
 
 Agent behavior and the optional guided demo are distributed separately through

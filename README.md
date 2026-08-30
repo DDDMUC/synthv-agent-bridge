@@ -655,10 +655,10 @@ npm run doctor -- --target "/path/to/Synthesizer V Studio 2/scripts"
 The default Doctor checks only host-neutral Runtime state: source/installed
 versions and exact script contents, compiled MCP freshness, running capability
 fingerprints, Bridge/MCP heartbeats, the resolved IPC directory, and residual
-processing/control files. Add `--host codex`, `--host claude`, or `--host all`
-to validate project profiles; add `--json` for machine-readable output. Doctor
-never reads or writes user-global host settings, the SynthV project, or installed
-files.
+processing/control files. Add `--host profiles` to discover and validate every
+project profile in the repository; add `--json` for machine-readable output.
+Doctor never reads or writes user-global host settings, the SynthV project, or
+installed files.
 
 ## Current limitations
 

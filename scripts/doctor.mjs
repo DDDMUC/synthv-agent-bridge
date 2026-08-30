@@ -16,10 +16,10 @@ const jsonOutput = argumentsList.includes("--json");
 const targetFlagIndex = argumentsList.indexOf("--target");
 const hostFlagIndex = argumentsList.indexOf("--host");
 const selectedHost = hostFlagIndex >= 0 ? argumentsList[hostFlagIndex + 1] : "core";
-const supportedHosts = new Set(["core", "codex", "claude", "all"]);
+const supportedHosts = new Set(["core", "profiles", "all"]);
 if (!supportedHosts.has(selectedHost)) {
   process.stderr.write(
-    `Unsupported --host value ${JSON.stringify(selectedHost)}; use core, codex, claude, or all.\n`,
+    `Unsupported --host value ${JSON.stringify(selectedHost)}; use core, profiles, or all.\n`,
   );
   process.exit(2);
 }
@@ -67,6 +67,69 @@ async function readJson(filePath) {
   } catch {
     return { invalid: true };
   }
+}
+
+const CANONICAL_ENTRY = "dist/src/cli.js";
+const SKIPPED_PROFILE_DIRECTORIES = new Set([
+  ".git",
+  "node_modules",
+  "dist",
+  "coverage",
+]);
+
+// Project profiles are discovered, never enumerated by client brand: a new MCP
+// client is onboarded by adding its own config file, with no change here. Only
+// the launch contract is validated; every other key belongs to that client.
+async function discoverProjectProfiles() {
+  const profiles = [];
+  const addProfile = async (relativePath, format) => {
+    const absolutePath = path.join(repositoryRoot, relativePath);
+    const content =
+      format === "json"
+        ? await readJson(absolutePath)
+        : await readText(absolutePath);
+    if (content === null) return;
+    profiles.push({
+      id: relativePath.split(path.sep).join("/"),
+      format,
+      content,
+    });
+  };
+
+  await addProfile(".mcp.json", "json");
+
+  let rootEntries = [];
+  try {
+    rootEntries = await readdir(repositoryRoot, { withFileTypes: true });
+  } catch {
+    rootEntries = [];
+  }
+  for (const entry of rootEntries) {
+    if (!entry.isDirectory() || SKIPPED_PROFILE_DIRECTORIES.has(entry.name)) {
+      continue;
+    }
+    await addProfile(path.join(entry.name, "config.toml"), "toml");
+    await addProfile(path.join(entry.name, "mcp.json"), "json");
+  }
+
+  return profiles.sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function profileLaunchesCanonicalEntry(profile) {
+  if (profile.format === "json") {
+    const servers = profile.content?.mcpServers;
+    const server = servers?.[SERVER_NAME];
+    return (
+      server?.command === "node" &&
+      Array.isArray(server.args) &&
+      server.args.includes(CANONICAL_ENTRY)
+    );
+  }
+  return (
+    typeof profile.content === "string" &&
+    profile.content.includes(SERVER_NAME) &&
+    profile.content.includes(CANONICAL_ENTRY)
+  );
 }
 
 function lineValue(text, key) {
@@ -429,35 +492,17 @@ if (suppliedTarget) {
   );
 }
 
-if (selectedHost === "codex" || selectedHost === "all") {
-  const codexConfigPath = path.join(repositoryRoot, ".codex", "config.toml");
-  const codexConfig = await readText(codexConfigPath);
-  record(
-    "codex-project-config",
-    codexConfig?.includes(SERVER_NAME) && codexConfig.includes("dist/src/cli.js")
-      ? "ok"
-      : "warning",
-    codexConfig?.includes(SERVER_NAME) && codexConfig.includes("dist/src/cli.js")
-      ? "Project-scoped Codex config contains the synthv-agent-bridge command."
-      : `No usable project-scoped synthv-agent-bridge entry was found in ${codexConfigPath}.`,
-  );
-}
-
-if (selectedHost === "claude" || selectedHost === "all") {
-  const claudeConfigPath = path.join(repositoryRoot, ".mcp.json");
-  const claudeConfig = await readJson(claudeConfigPath);
-  const claudeServer = claudeConfig?.mcpServers?.[SERVER_NAME];
-  const claudeConfigMatches =
-    claudeServer?.command === "node" &&
-    Array.isArray(claudeServer.args) &&
-    claudeServer.args.includes("dist/src/cli.js");
-  record(
-    "claude-project-config",
-    claudeConfigMatches ? "ok" : "warning",
-    claudeConfigMatches
-      ? "Project-scoped Claude Code config contains the synthv-agent-bridge command."
-      : `No usable project-scoped synthv-agent-bridge entry was found in ${claudeConfigPath}.`,
-  );
+if (selectedHost === "profiles" || selectedHost === "all") {
+  for (const profile of await discoverProjectProfiles()) {
+    const launches = profileLaunchesCanonicalEntry(profile);
+    record(
+      `project-profile:${profile.id}`,
+      launches ? "ok" : "warning",
+      launches
+        ? `Project profile ${profile.id} launches the canonical ${SERVER_NAME} entry point.`
+        : `No usable project-scoped ${SERVER_NAME} entry was found in ${profile.id}.`,
+    );
+  }
 }
 
 try {

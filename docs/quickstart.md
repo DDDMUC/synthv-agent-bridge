@@ -100,9 +100,8 @@ npm run doctor -- --target "C:\path\to\SynthV scripts"
 Validate a project profile without reading global settings:
 
 ```powershell
-npm run doctor -- --host codex
-npm run doctor -- --host claude
-npm run doctor -- --host all --json
+npm run doctor -- --host profiles
+npm run doctor -- --host profiles --json
 ```
 
 Doctor checks compiled build freshness, component versions/build identities,

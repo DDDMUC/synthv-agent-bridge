@@ -600,9 +600,9 @@ npm run doctor -- --target "/Synthesizer V Studio 2/脚本目录"
 
 Doctor 默认只检查宿主中立 Runtime 状态：源码/安装版本、脚本准确内容、
 MCP 构建新鲜度、运行中能力指纹、Bridge/MCP 心跳、解析后的 IPC 目录和残留
-处理/控制文件。用 `--host codex`、`--host claude` 或 `--host all` 才检查
-项目配置；添加 `--json` 可获得机器可读输出。Doctor 不读取或写入用户全局
-宿主设置，也不修改 SynthV 工程或安装文件。
+处理/控制文件。用 `--host profiles` 才会发现并检查仓库内的全部项目配置；
+添加 `--json` 可获得机器可读输出。Doctor 不读取或写入用户全局宿主设置，
+也不修改 SynthV 工程或安装文件。
 
 ## 当前限制
 

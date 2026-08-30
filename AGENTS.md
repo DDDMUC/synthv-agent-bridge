@@ -67,12 +67,22 @@ Agent skills, demos, and artistic workflow instructions live in the separate
 
 ## Compatibility boundary
 
-- Runtime behavior must not branch on an Agent brand.
-- Project profiles may adapt stdio registration for Codex and Claude Code, but
-  they must launch the same `dist/src/cli.js` Runtime.
-- Do not write user-global host configuration during build, install, or Doctor.
-- `npm run doctor` checks core Runtime state by default. Host profile checks must
-  be opt-in via `--host codex`, `--host claude`, or `--host all`.
+- A client brand may appear as *data* — a project profile's file name, or prose
+  in `docs/` and `examples/` describing how a user registers the server. It must
+  never appear as *control flow*: no `if (host === "<brand>")`, no brand
+  enumeration. `src/`, `synthv/`, `scripts/`, and `.github/` must contain zero
+  brand tokens, enforced by `tests/client-neutrality.test.ts`.
+- The repository asserts exactly one launch contract: the stdio server
+  `synthv-agent-bridge`, started as `node dist/src/cli.js`. Timeouts, env, and
+  key spellings belong to each client.
+- Project profiles are discovered, never enumerated: Doctor reads `.mcp.json`
+  and any `<dot-directory>/config.toml` or `<dot-directory>/mcp.json`, then
+  checks only the launch contract. Onboarding a new client means adding its
+  config file, with no Runtime or Doctor change.
+- Shipping a project-scoped profile is allowed convenience. Do not write
+  user-global host configuration during build, install, or Doctor.
+- `npm run doctor` checks core Runtime state by default. Project profile checks
+  must be opt-in via `--host profiles` (or `--host all`).
 
 ## Checks
 
