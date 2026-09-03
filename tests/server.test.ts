@@ -304,6 +304,30 @@ test("empty Vocal Mode maps are initialized by clone validation", async () => {
   );
 });
 
+test("Group Voice reports the official singer identity boundary", async () => {
+  const [compiledServer, bridgeSource, projectorSource] = await Promise.all([
+    readFile(new URL("../src/server.js", import.meta.url), "utf8"),
+    readFile(
+      new URL("../../synthv/SynthVAgentBridge.lua", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../src/v3-query-projector.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(
+    compiledServer,
+    /without changing the singer or voice database/u,
+  );
+  assert.match(bridgeSource, /singerIdentity = \{/u);
+  assert.match(bridgeSource, /readable = false/u);
+  assert.match(bridgeSource, /assignable = false/u);
+  assert.match(bridgeSource, /parameterUpdatesSupported = true/u);
+  assert.match(
+    bridgeSource,
+    /no singer or voice database identity selector/u,
+  );
+  assert.match(projectorSource, /"singerIdentity"/u);
+});
+
 test("same-Group tuning is one prevalidated Lua undo record", async () => {
   const [compiledServer, bridgeSource] = await Promise.all([
     readFile(new URL("../src/server.js", import.meta.url), "utf8"),

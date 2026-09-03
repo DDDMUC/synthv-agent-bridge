@@ -1669,7 +1669,7 @@ export function createServer(config: BridgeConfig): McpServer {
     {
       title: "Set SynthV Group Voice",
       description:
-        "Safely update documented group voice defaults and 0..150 Vocal Mode axes. An empty vocalModes read means no non-default values are stored, not unsupported modes. Use exact names supplied by the user or identified from their panel screenshot, batch them in one call, and do not probe guesses. If VOCAL_MODE_NOT_FOUND is returned, ask once for the current singer's exact names. Experimental Unison fields are accepted only when the host returns and retains them.",
+        "Safely update documented group voice defaults and 0..150 Vocal Mode axes without changing the singer or voice database. The official SynthV scripting API does not expose singer identity read/assignment; the response reports this capability boundary. An empty vocalModes read means no non-default values are stored, not unsupported modes. Use exact names supplied by the user or identified from their panel screenshot, batch them in one call, and do not probe guesses. If VOCAL_MODE_NOT_FOUND is returned, ask once for the current singer's exact names. Experimental Unison fields are accepted only when the host returns and retains them.",
       inputSchema: {
         ...groupLocatorShape,
         referenceFingerprint: fingerprintSchema.describe(

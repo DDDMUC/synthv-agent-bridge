@@ -1782,6 +1782,13 @@ local function serializeGroupVoice(reference, trackIndex, groupIndex)
         groupIndex = groupIndex,
         groupUuid = group:getUUID(),
         referenceFingerprint = makeReferenceFingerprint(reference),
+        singerIdentity = {
+            readable = false,
+            assignable = false,
+            parameterUpdatesSupported = true,
+            reason =
+                "SynthV's scripting API exposes NoteGroupReference:getVoice/setVoice properties but no singer or voice database identity selector"
+        },
         parameters = parameters,
         vocalModes = vocalModes,
         experimentalUnison = {
