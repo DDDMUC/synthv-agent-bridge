@@ -5,7 +5,8 @@
   "private": true,
   "type": "module",
   "bin": {
-    "synthv-agent-bridge": "./dist/src/cli.js"
+    "synthv-agent-bridge": "./dist/src/cli.js",
+    "synthv-agent-bridge-sv1-legacy": "./dist/legacy-sv1/src/cli.js"
   },
   "files": [
     "dist",
@@ -40,6 +41,7 @@
     "start": "node dist/src/cli.js",
     "inspector": "npm run build && npx @modelcontextprotocol/inspector node dist/src/cli.js",
     "install:synthv": "node scripts/install-synthv-bridge.mjs",
+    "install:sv1-legacy": "node scripts/install-sv1-legacy-bridge.mjs",
     "doctor": "node scripts/doctor.mjs"
   },
   "dependencies": {
