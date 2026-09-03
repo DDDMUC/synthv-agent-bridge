@@ -21,6 +21,6 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "include": ["src/**/*.ts", "legacy-sv1/**/*.ts", "tests/**/*.ts", "test/**/*.ts"],
   "exclude": ["dist", "node_modules"]
 }
