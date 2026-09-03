@@ -18,6 +18,8 @@ test("SV1 legacy executor is isolated and declares exactly the SV1 1.11.2 gate",
   assert.doesNotMatch(executor, /synthv-agent-bridge\.request/u);
   for (const unsupported of ["singer.list", "part.assign_singer", "getRetakes", "getComputedPitchForGroup"]) assert.doesNotMatch(executor, new RegExp(unsupported.replaceAll(".", "\\."), "u"));
   for (const operation of ["studio.get_status", "project.get", "sequence.get", "transport.seek", "track.create", "part.delete", "note.update"]) assert.match(executor, new RegExp(`handlers\\["${operation.replaceAll(".", "\\.")}"\\]`, "u"));
+  for (const field of ["trackIndex=i", "partIndex=i", "noteIndex=i", "deleted=true, trackIndex=index", "deleted=true, trackIndex=payload.trackIndex, partIndex=index", "deleted=true, trackIndex=payload.trackIndex, partIndex=payload.partIndex, noteIndex=index"]) assert.match(executor, new RegExp(field.replaceAll(".", "\\."), "u"));
+  assert.doesNotMatch(executor, /return \{ index=i,/u);
 });
 
 test("SV1 legacy public MCP surface uses zero-based standard tools only", () => {
