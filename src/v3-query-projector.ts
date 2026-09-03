@@ -557,6 +557,7 @@ const QUERY_PROJECTION_DEFINITIONS: Readonly<
     [
       "trackIndex",
       "groupIndex",
+      "singerIdentity",
       "parameters",
       "vocalModes",
       "rawVoice",
