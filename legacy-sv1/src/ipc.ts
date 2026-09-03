@@ -53,4 +53,10 @@ export class LegacyIpcClient {
     await fs.rm(this.config.requestFile, { force: true });
     throw new LegacyIpcError("HOST_TIMEOUT", "SV1 legacy Bridge did not respond before timeout.");
   }
+
+  public async disconnect(): Promise<{ readonly requested: true }> {
+    await fs.mkdir(this.config.directory, { recursive: true });
+    await fs.writeFile(this.config.stopFile, "stop\n", "utf8");
+    return { requested: true };
+  }
 }

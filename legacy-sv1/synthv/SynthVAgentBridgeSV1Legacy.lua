@@ -3,6 +3,7 @@ local SCRIPT_NAME = "SynthV Agent Bridge SV1 Legacy"
 local MIN_EDITOR_VERSION = 0x010B02
 local PROTOCOL_VERSION = 1
 local POLL_INTERVAL_MS = 40
+local HEARTBEAT_INTERVAL_MS = 1000
 local MAX_REQUEST_BYTES = 256 * 1024
 
 local function hostInfo() return SV:getHostInfo() end
@@ -19,6 +20,7 @@ end
 local PREFIX = join(ipcDirectory(), "synthv-agent-bridge-sv1-legacy")
 local REQUEST_FILE, RESPONSE_FILE = PREFIX .. ".request.json", PREFIX .. ".response.json"
 local STATUS_FILE, STOP_FILE = PREFIX .. ".status.json", PREFIX .. ".stop"
+local lastHeartbeatEpochMs, lastStatusState, lastStatusMessage = 0, nil, nil
 
 -- Compact JSON implementation: the bridge accepts only JSON values and never evaluates request text as Lua.
 local json = {}
@@ -76,6 +78,17 @@ local function track(p, zero) return p:getTrack(integer(zero,"trackIndex",0,p:ge
 local function part(t, zero) return t:getGroupReference(integer(zero,"partIndex",0,t:getNumGroups()-1)+1) end
 local function group(reference) if reference:isInstrumental() then fail("UNSUPPORTED_PART","Instrumental parts are not supported") end; local result=reference:getTarget(); if not result then fail("PART_NOT_FOUND","Part target is unavailable") end return result end
 local function note(g, zero) return g:getNote(integer(zero,"noteIndex",0,g:getNumNotes()-1)+1) end
+local function noteIndex(g, target)
+  for index=1,g:getNumNotes() do
+    local candidate=g:getNote(index)
+    if candidate == target then return index-1 end
+  end
+  for index=1,g:getNumNotes() do
+    local candidate=g:getNote(index)
+    if candidate:getOnset()==target:getOnset() and candidate:getDuration()==target:getDuration() and candidate:getPitch()==target:getPitch() and candidate:getLyrics()==target:getLyrics() and candidate:getPhonemes()==target:getPhonemes() then return index-1 end
+  end
+  fail("HOST_POSTCONDITION_FAILED", "SynthV did not retain the modified note")
+end
 local function serialNote(n, i) return { index=i, onset=n:getOnset(), duration=n:getDuration(), pitch=n:getPitch(), lyrics=n:getLyrics(), phonemes=n:getPhonemes() } end
 local function serialPart(r, i) local g=group(r); local notes={}; for n=1,g:getNumNotes() do notes[#notes+1]=serialNote(g:getNote(n),n-1) end; return { index=i, name=g:getName(), main=r:isMain(), timeOffset=r:getTimeOffset(), pitchOffset=r:getPitchOffset(), notes=notes } end
 local function serialTrack(t, i) local parts={}; for p=1,t:getNumGroups() do parts[#parts+1]=serialPart(t:getGroupReference(p),p-1) end; return { index=i, name=t:getName(), parts=parts } end
@@ -83,24 +96,33 @@ local function writeAllowed(payload) if payload.writeIntent ~= true then fail("W
 local function undo(p, payload) writeAllowed(payload); p:newUndoRecord() end
 local handlers={}
 handlers["studio.get_status"] = function() return { host="sv1", hostVersion=hostInfo().hostVersion, hostVersionNumber=hostInfo().hostVersionNumber, connected=true, capabilities={ singerAssignment=false, retakes=false, computedPitch=false, seek=true } } end
-handlers["project.get"] = function() local p=project(); return { trackCount=p:getNumTracks() } end
-handlers["sequence.get"] = function() local p=project(); local tracks={}; for i=1,p:getNumTracks() do tracks[#tracks+1]=serialTrack(p:getTrack(i),i-1) end; return { tracks=tracks } end
-handlers["track.list"] = function() return handlers["sequence.get"]().tracks end
+handlers["project.get"] = function() local p=project(); return { trackCount=p:getNumTracks(), fileName=p:getFileName() } end
+handlers["sequence.get"] = function()
+  local axis=project():getTimeAxis()
+  return { tempoMarks=axis:getAllTempoMarks(), timeSignatures=axis:getAllMeasureMarks() }
+end
+handlers["track.list"] = function() local p=project(); local tracks={}; for i=1,p:getNumTracks() do tracks[#tracks+1]=serialTrack(p:getTrack(i),i-1) end; return tracks end
 handlers["track.get"] = function(payload) local p=project(); return serialTrack(track(p,payload.trackIndex),payload.trackIndex) end
 handlers["track.create"] = function(payload) local p=project(); undo(p,payload); local t=SV:create("Track"); t:setName(type(payload.name)=="string" and payload.name or "Track"); p:addTrack(t); return serialTrack(t,p:getNumTracks()-1) end
 handlers["track.update"] = function(payload) local p=project(); undo(p,payload); local t=track(p,payload.trackIndex); if type(payload.name)~="string" then fail("INVALID_ARGUMENT","name is required") end; t:setName(payload.name); return serialTrack(t,payload.trackIndex) end
-handlers["track.delete"] = function(payload) local p=project(); local index=integer(payload.trackIndex,"trackIndex",0,p:getNumTracks()-1); undo(p,payload); p:removeTrack(index+1); return { deleted=true, index=index } end
+handlers["track.delete"] = function(payload) local p=project(); local index=integer(payload.trackIndex,"trackIndex",0,p:getNumTracks()-1); if p:getNumTracks()<=1 then fail("LAST_TRACK_FORBIDDEN","SynthV projects must retain one track") end; undo(p,payload); p:removeTrack(index+1); return { deleted=true, index=index } end
 handlers["part.list"] = function(payload) local t=track(project(),payload.trackIndex); local result={}; for i=1,t:getNumGroups() do result[#result+1]=serialPart(t:getGroupReference(i),i-1) end; return result end
 handlers["part.get"] = function(payload) return serialPart(part(track(project(),payload.trackIndex),payload.partIndex),payload.partIndex) end
 handlers["part.create"] = function(payload)
   local p=project(); local t=track(p,payload.trackIndex); undo(p,payload)
   local g=SV:create("NoteGroup"); g:setName(type(payload.name)=="string" and payload.name or "Part")
-  p:addNoteGroup(g); local r=SV:create("NoteGroupReference"); r:setTarget(g); t:addGroupReference(r)
+  p:addNoteGroup(g); local r=SV:create("NoteGroupReference"); r:setTarget(g)
+  if payload.timeOffset~=nil then r:setTimeOffset(integer(payload.timeOffset,"timeOffset",0,9007199254740991)) end
+  if payload.pitchOffset~=nil then r:setPitchOffset(integer(payload.pitchOffset,"pitchOffset",-127,127)) end
+  t:addGroupReference(r)
   return serialPart(r,t:getNumGroups()-1)
 end
 handlers["part.update"] = function(payload)
   local p=project(); local r=part(track(p,payload.trackIndex),payload.partIndex); local g=group(r); undo(p,payload)
-  if type(payload.name)~="string" then fail("INVALID_ARGUMENT","name is required") end; g:setName(payload.name)
+  if payload.name==nil and payload.timeOffset==nil and payload.pitchOffset==nil then fail("INVALID_ARGUMENT","name, timeOffset, or pitchOffset is required") end
+  if payload.name~=nil then if type(payload.name)~="string" then fail("INVALID_ARGUMENT","name must be a string") end; g:setName(payload.name) end
+  if payload.timeOffset~=nil then r:setTimeOffset(integer(payload.timeOffset,"timeOffset",0,9007199254740991)) end
+  if payload.pitchOffset~=nil then r:setPitchOffset(integer(payload.pitchOffset,"pitchOffset",-127,127)) end
   return serialPart(r,payload.partIndex)
 end
 handlers["part.delete"] = function(payload)
@@ -109,8 +131,8 @@ handlers["part.delete"] = function(payload)
   undo(p,payload); t:removeGroupReference(index+1); return { deleted=true, index=index }
 end
 handlers["note.list"] = function(payload) return serialPart(part(track(project(),payload.trackIndex),payload.partIndex),payload.partIndex).notes end
-handlers["note.create"] = function(payload) local p=project(); local g=group(part(track(p,payload.trackIndex),payload.partIndex)); undo(p,payload); local n=SV:create("Note"); n:setOnset(integer(payload.onset,"onset",0,9007199254740991)); n:setDuration(integer(payload.duration,"duration",1,9007199254740991)); n:setPitch(integer(payload.pitch,"pitch",0,127)); n:setLyrics(type(payload.lyrics)=="string" and payload.lyrics or "la"); if type(payload.phonemes)=="string" then n:setPhonemes(payload.phonemes) end; g:addNote(n); return serialNote(n,g:getNumNotes()-1) end
-handlers["note.update"] = function(payload) local p=project(); local n=note(group(part(track(p,payload.trackIndex),payload.partIndex)),payload.noteIndex); undo(p,payload); if payload.onset~=nil then n:setOnset(integer(payload.onset,"onset",0,9007199254740991)) end; if payload.duration~=nil then n:setDuration(integer(payload.duration,"duration",1,9007199254740991)) end; if payload.pitch~=nil then n:setPitch(integer(payload.pitch,"pitch",0,127)) end; if payload.lyrics~=nil then if type(payload.lyrics)~="string" then fail("INVALID_ARGUMENT","lyrics must be a string") end n:setLyrics(payload.lyrics) end; if payload.phonemes~=nil then if type(payload.phonemes)~="string" then fail("INVALID_ARGUMENT","phonemes must be a string") end n:setPhonemes(payload.phonemes) end; return serialNote(n,payload.noteIndex) end
+handlers["note.create"] = function(payload) local p=project(); local g=group(part(track(p,payload.trackIndex),payload.partIndex)); undo(p,payload); local n=SV:create("Note"); n:setOnset(integer(payload.onset,"onset",0,9007199254740991)); n:setDuration(integer(payload.duration,"duration",1,9007199254740991)); n:setPitch(integer(payload.pitch,"pitch",0,127)); n:setLyrics(type(payload.lyrics)=="string" and payload.lyrics or "la"); if type(payload.phonemes)=="string" then n:setPhonemes(payload.phonemes) end; g:addNote(n); return serialNote(n,noteIndex(g,n)) end
+handlers["note.update"] = function(payload) local p=project(); local g=group(part(track(p,payload.trackIndex),payload.partIndex)); local n=note(g,payload.noteIndex); undo(p,payload); if payload.onset~=nil then n:setOnset(integer(payload.onset,"onset",0,9007199254740991)) end; if payload.duration~=nil then n:setDuration(integer(payload.duration,"duration",1,9007199254740991)) end; if payload.pitch~=nil then n:setPitch(integer(payload.pitch,"pitch",0,127)) end; if payload.lyrics~=nil then if type(payload.lyrics)~="string" then fail("INVALID_ARGUMENT","lyrics must be a string") end n:setLyrics(payload.lyrics) end; if payload.phonemes~=nil then if type(payload.phonemes)~="string" then fail("INVALID_ARGUMENT","phonemes must be a string") end n:setPhonemes(payload.phonemes) end; return serialNote(n,noteIndex(g,n)) end
 handlers["note.delete"] = function(payload) local p=project(); local g=group(part(track(p,payload.trackIndex),payload.partIndex)); local index=integer(payload.noteIndex,"noteIndex",0,g:getNumNotes()-1); undo(p,payload); g:removeNote(index+1); return { deleted=true, index=index } end
 handlers["transport.get"] = function() local c=SV:getPlayback(); return { status=c:getStatus(), playheadSeconds=c:getPlayhead() } end
 handlers["transport.play"] = function(payload) writeAllowed(payload); SV:getPlayback():play(); return handlers["transport.get"]() end
@@ -118,7 +140,13 @@ handlers["transport.pause"] = function(payload) writeAllowed(payload); SV:getPla
 handlers["transport.stop"] = function(payload) writeAllowed(payload); SV:getPlayback():stop(); return handlers["transport.get"]() end
 handlers["transport.seek"] = function(payload) writeAllowed(payload); SV:getPlayback():seek(payload.seconds); return handlers["transport.get"]() end
 
-local function status(state, message) write(STATUS_FILE,{ v=PROTOCOL_VERSION,state=state,updatedAtEpochMs=os.time()*1000,host=hostInfo(),message=message }) end
+local function status(state, message, force)
+  local now=os.time()*1000
+  if not force and state==lastStatusState and message==lastStatusMessage and now-lastHeartbeatEpochMs<HEARTBEAT_INTERVAL_MS then return false end
+  write(STATUS_FILE,{ v=PROTOCOL_VERSION,state=state,updatedAtEpochMs=now,host=hostInfo(),message=message })
+  lastHeartbeatEpochMs,lastStatusState,lastStatusMessage=now,state,message
+  return true
+end
 local function process()
   if not exists(REQUEST_FILE) then return end
   local raw=read(REQUEST_FILE); remove(REQUEST_FILE); local request=json.decode(raw)
@@ -128,7 +156,8 @@ local function process()
     return handler(object(request.p or {},"payload"))
   end)
   if ok then write(RESPONSE_FILE,{v=PROTOCOL_VERSION,id=request.id,ok=true,result=result}) else local e=type(result)=="table" and result or {code="HOST_ERROR",message=tostring(result)}; write(RESPONSE_FILE,{v=PROTOCOL_VERSION,id=request.id,ok=false,error=e}) end
+  status("running","",true)
 end
-local function poll() if exists(STOP_FILE) then remove(STOP_FILE); status("stopped","Stopped"); SV:finish(); return end; local ok,err=pcall(process); if not ok then status("error",tostring(err)) end; status("running",""); SV:setTimeout(POLL_INTERVAL_MS,poll) end
+local function poll() if exists(STOP_FILE) then remove(STOP_FILE); status("stopped","Stopped",true); SV:finish(); return end; local ok,err=pcall(process); if not ok then status("error",tostring(err),true) else status("running","",false) end; SV:setTimeout(POLL_INTERVAL_MS,poll) end
 function getClientInfo() return { name=SCRIPT_NAME,author="SynthV Agent Bridge",category="SynthV Agent Bridge",versionNumber=1,minEditorVersion=MIN_EDITOR_VERSION } end
 function main() remove(STOP_FILE); remove(REQUEST_FILE); remove(RESPONSE_FILE); status("running",""); poll() end
