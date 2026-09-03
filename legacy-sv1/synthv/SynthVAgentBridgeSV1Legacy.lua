@@ -89,9 +89,9 @@ local function noteIndex(g, target)
   end
   fail("HOST_POSTCONDITION_FAILED", "SynthV did not retain the modified note")
 end
-local function serialNote(n, i) return { index=i, onset=n:getOnset(), duration=n:getDuration(), pitch=n:getPitch(), lyrics=n:getLyrics(), phonemes=n:getPhonemes() } end
-local function serialPart(r, i) local g=group(r); local notes={}; for n=1,g:getNumNotes() do notes[#notes+1]=serialNote(g:getNote(n),n-1) end; return { index=i, name=g:getName(), main=r:isMain(), timeOffset=r:getTimeOffset(), pitchOffset=r:getPitchOffset(), notes=notes } end
-local function serialTrack(t, i) local parts={}; for p=1,t:getNumGroups() do parts[#parts+1]=serialPart(t:getGroupReference(p),p-1) end; return { index=i, name=t:getName(), parts=parts } end
+local function serialNote(n, i) return { noteIndex=i, onset=n:getOnset(), duration=n:getDuration(), pitch=n:getPitch(), lyrics=n:getLyrics(), phonemes=n:getPhonemes() } end
+local function serialPart(r, i) local g=group(r); local notes={}; for n=1,g:getNumNotes() do notes[#notes+1]=serialNote(g:getNote(n),n-1) end; return { partIndex=i, name=g:getName(), main=r:isMain(), timeOffset=r:getTimeOffset(), pitchOffset=r:getPitchOffset(), notes=notes } end
+local function serialTrack(t, i) local parts={}; for p=1,t:getNumGroups() do parts[#parts+1]=serialPart(t:getGroupReference(p),p-1) end; return { trackIndex=i, name=t:getName(), parts=parts } end
 local function writeAllowed(payload) if payload.writeIntent ~= true then fail("WRITE_INTENT_REQUIRED","Write operations require writeIntent=true") end; if pendingEdits() then fail("HOST_EDIT_IN_PROGRESS","Finish or cancel the active SynthV edit before writing") end end
 local function undo(p, payload) writeAllowed(payload); p:newUndoRecord() end
 local handlers={}
@@ -105,7 +105,7 @@ handlers["track.list"] = function() local p=project(); local tracks={}; for i=1,
 handlers["track.get"] = function(payload) local p=project(); return serialTrack(track(p,payload.trackIndex),payload.trackIndex) end
 handlers["track.create"] = function(payload) local p=project(); undo(p,payload); local t=SV:create("Track"); t:setName(type(payload.name)=="string" and payload.name or "Track"); p:addTrack(t); return serialTrack(t,p:getNumTracks()-1) end
 handlers["track.update"] = function(payload) local p=project(); undo(p,payload); local t=track(p,payload.trackIndex); if type(payload.name)~="string" then fail("INVALID_ARGUMENT","name is required") end; t:setName(payload.name); return serialTrack(t,payload.trackIndex) end
-handlers["track.delete"] = function(payload) local p=project(); local index=integer(payload.trackIndex,"trackIndex",0,p:getNumTracks()-1); if p:getNumTracks()<=1 then fail("LAST_TRACK_FORBIDDEN","SynthV projects must retain one track") end; undo(p,payload); p:removeTrack(index+1); return { deleted=true, index=index } end
+handlers["track.delete"] = function(payload) local p=project(); local index=integer(payload.trackIndex,"trackIndex",0,p:getNumTracks()-1); if p:getNumTracks()<=1 then fail("LAST_TRACK_FORBIDDEN","SynthV projects must retain one track") end; undo(p,payload); p:removeTrack(index+1); return { deleted=true, trackIndex=index } end
 handlers["part.list"] = function(payload) local t=track(project(),payload.trackIndex); local result={}; for i=1,t:getNumGroups() do result[#result+1]=serialPart(t:getGroupReference(i),i-1) end; return result end
 handlers["part.get"] = function(payload) return serialPart(part(track(project(),payload.trackIndex),payload.partIndex),payload.partIndex) end
 handlers["part.create"] = function(payload)
@@ -128,12 +128,12 @@ end
 handlers["part.delete"] = function(payload)
   local p=project(); local t=track(p,payload.trackIndex); local index=integer(payload.partIndex,"partIndex",0,t:getNumGroups()-1)
   if index==0 then fail("UNSUPPORTED_OPERATION","The SV1 main part cannot be deleted") end
-  undo(p,payload); t:removeGroupReference(index+1); return { deleted=true, index=index }
+  undo(p,payload); t:removeGroupReference(index+1); return { deleted=true, trackIndex=payload.trackIndex, partIndex=index }
 end
 handlers["note.list"] = function(payload) return serialPart(part(track(project(),payload.trackIndex),payload.partIndex),payload.partIndex).notes end
 handlers["note.create"] = function(payload) local p=project(); local g=group(part(track(p,payload.trackIndex),payload.partIndex)); undo(p,payload); local n=SV:create("Note"); n:setOnset(integer(payload.onset,"onset",0,9007199254740991)); n:setDuration(integer(payload.duration,"duration",1,9007199254740991)); n:setPitch(integer(payload.pitch,"pitch",0,127)); n:setLyrics(type(payload.lyrics)=="string" and payload.lyrics or "la"); if type(payload.phonemes)=="string" then n:setPhonemes(payload.phonemes) end; g:addNote(n); return serialNote(n,noteIndex(g,n)) end
 handlers["note.update"] = function(payload) local p=project(); local g=group(part(track(p,payload.trackIndex),payload.partIndex)); local n=note(g,payload.noteIndex); undo(p,payload); if payload.onset~=nil then n:setOnset(integer(payload.onset,"onset",0,9007199254740991)) end; if payload.duration~=nil then n:setDuration(integer(payload.duration,"duration",1,9007199254740991)) end; if payload.pitch~=nil then n:setPitch(integer(payload.pitch,"pitch",0,127)) end; if payload.lyrics~=nil then if type(payload.lyrics)~="string" then fail("INVALID_ARGUMENT","lyrics must be a string") end n:setLyrics(payload.lyrics) end; if payload.phonemes~=nil then if type(payload.phonemes)~="string" then fail("INVALID_ARGUMENT","phonemes must be a string") end n:setPhonemes(payload.phonemes) end; return serialNote(n,noteIndex(g,n)) end
-handlers["note.delete"] = function(payload) local p=project(); local g=group(part(track(p,payload.trackIndex),payload.partIndex)); local index=integer(payload.noteIndex,"noteIndex",0,g:getNumNotes()-1); undo(p,payload); g:removeNote(index+1); return { deleted=true, index=index } end
+handlers["note.delete"] = function(payload) local p=project(); local g=group(part(track(p,payload.trackIndex),payload.partIndex)); local index=integer(payload.noteIndex,"noteIndex",0,g:getNumNotes()-1); undo(p,payload); g:removeNote(index+1); return { deleted=true, trackIndex=payload.trackIndex, partIndex=payload.partIndex, noteIndex=index } end
 handlers["transport.get"] = function() local c=SV:getPlayback(); return { status=c:getStatus(), playheadSeconds=c:getPlayhead() } end
 handlers["transport.play"] = function(payload) writeAllowed(payload); SV:getPlayback():play(); return handlers["transport.get"]() end
 handlers["transport.pause"] = function(payload) writeAllowed(payload); SV:getPlayback():pause(); return handlers["transport.get"]() end
