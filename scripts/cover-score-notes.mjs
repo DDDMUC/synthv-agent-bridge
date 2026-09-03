@@ -28,6 +28,7 @@ const imported = importScoreSnapshotMonophonic(
   snapshot,
   { trackIndex: track.trackIndex, channel: track.channels[0].channel },
   snapshot.fileFingerprint,
+  { defaultLyric: "la" },
 );
 process.stdout.write(
   `${JSON.stringify({
