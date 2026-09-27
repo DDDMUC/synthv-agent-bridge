@@ -119,6 +119,10 @@ test("CLN-006: Track shell is verified empty without changing its source", (cont
   assertMarker(context, "cln-006-empty-track-shell");
 });
 
+test("copy_group_voice copies documented Voice fields without claiming voicebank identity", (context) => {
+  assertMarker(context, "copy-group-voice");
+});
+
 test("Fake Host: clone source snapshots fail closed on authoritative getter failures", (context) => {
   assertMarker(context, "clone-source-snapshot-getter-failure");
 });

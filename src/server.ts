@@ -161,6 +161,20 @@ const groupLocatorShape = {
     .describe("Optional group UUID. When present, the bridge verifies that it matches groupIndex."),
 };
 
+const copyGroupVoiceSourceShape = {
+  sourceTrackIndex: indexSchema.describe("1-based source track storage index."),
+  sourceGroupIndex: indexSchema
+    .default(1)
+    .describe(
+      "1-based source group index. Group 1 is always the track's main group.",
+    ),
+  sourceGroupUuid: groupUuidSchema
+    .optional()
+    .describe(
+      "Optional source group UUID guard. Requires sourceTrackIndex and verifies sourceGroupIndex.",
+    ),
+};
+
 const currentOrGroupLocatorShape = {
   trackIndex: indexSchema
     .optional()
@@ -1694,6 +1708,40 @@ export function createServer(config: BridgeConfig): McpServer {
     },
     async (input) =>
       runTool(async () => client.send("set_group_voice", input)),
+  );
+
+  server.registerTool(
+    "copy_group_voice",
+    {
+      title: "Copy SynthV Group Voice",
+      description:
+        "Copy documented Group Voice parameters and Vocal Mode axes from one vocal Group Reference to another through the same guarded, one-Undo update path as set_group_voice. This does not change the singer or voice database identity; select the desired voicebank manually in SynthV first. The response states that the identity remains unreadable and requires manual review.",
+      inputSchema: z
+        .object({
+          ...copyGroupVoiceSourceShape,
+          ...groupLocatorShape,
+          referenceFingerprint: fingerprintSchema.describe(
+            "Latest target reference fingerprint from get_group_voice or get_track_notes.",
+          ),
+          copyParameters: z.boolean().default(true),
+          copyVocalModes: z.boolean().default(true),
+        })
+        .refine(
+          (value) => value.copyParameters || value.copyVocalModes,
+          {
+            message:
+              "At least one of copyParameters or copyVocalModes must be true.",
+          },
+        ),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) =>
+      runTool(async () => client.send("copy_group_voice", input)),
   );
 
   server.registerTool(

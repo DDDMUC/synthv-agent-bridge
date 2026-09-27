@@ -2790,5 +2790,36 @@ do
 end
 end
 
-assert(project.undo==85,"expected 85 undo records, got "..project.undo)
+do
+project.tracks[2].refs[1].voice.paramLoudness=-3
+project.tracks[2].refs[1].voice.paramTension=0.25
+project.tracks[2].refs[1].voice.paramBreathiness=-0.1
+project.tracks[2].refs[1].voice.paramGender=0.2
+project.tracks[2].refs[1].voice.paramToneShift=-0.3
+project.tracks[2].refs[1].voice.vocalModeParams={Soft={pitch=25,timbre=40,pronunciation=15}}
+project.tracks[1].refs[1].voice.paramLoudness=4
+project.tracks[1].refs[1].voice.paramTension=-0.5
+project.tracks[1].refs[1].voice.vocalModeParams={Soft={pitch=1,timbre=2,pronunciation=3}}
+local targetVoiceRead=call("get_group_voice",'{"trackIndex":1,"groupIndex":1}')
+local targetVoiceFingerprint=extractJsonString(targetVoiceRead,"referenceFingerprint")
+local copyVoiceUndoBefore=project.undo
+local copiedVoice=callWrite(
+    "copy_group_voice",
+    '{"sourceTrackIndex":2,"sourceGroupIndex":1,'..
+        '"trackIndex":1,"groupIndex":1,'..
+        '"referenceFingerprint":"'..escape(targetVoiceFingerprint)..'"}'
+)
+assert(project.undo==copyVoiceUndoBefore+1,"copy_group_voice must create one undo record")
+assert(project.tracks[1].refs[1].voice.paramLoudness==-3,"copy_group_voice did not copy loudness")
+assert(project.tracks[1].refs[1].voice.paramTension==0.25,"copy_group_voice did not copy tension")
+assert(project.tracks[1].refs[1].voice.vocalModeParams.Soft.pitch==25,"copy_group_voice did not copy Vocal Mode pitch")
+assert(project.tracks[1].refs[1].voice.vocalModeParams.Soft.timbre==40,"copy_group_voice did not copy Vocal Mode timbre")
+assert(copiedVoice:find('"copiedParameterCount":5',1,true),"copy_group_voice reported the wrong parameter count")
+assert(copiedVoice:find('"copiedVocalModeCount":1',1,true),"copy_group_voice reported the wrong Vocal Mode count")
+assert(copiedVoice:find('"voicebankIdentityReadable":false',1,true),"copy_group_voice overstated voicebank visibility")
+assert(copiedVoice:find('"manualVoicebankSelectionRequired":true',1,true),"copy_group_voice omitted the manual voicebank boundary")
+print("CASE:copy-group-voice")
+end
+
+assert(project.undo==86,"expected 86 undo records, got "..project.undo)
 print("Mock SynthV smoke test passed")
