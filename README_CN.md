@@ -341,7 +341,7 @@ Guard，会安全失败，而不会静默改换目标。`readOnly` Context 不�
 | `delete_track` | 破坏性 | 删除经过指纹验证且不是最后一条的轨道。 |
 | `update_group` | 写入 | 修改人声/乐器引用状态和受支持的人声属性。 |
 | `set_group_voice` | 写入 | 使用指纹验证更新类型化 Voice、唱法（Vocal Mode）和经宿主验证的实验性 Unison，可选当前 Group 保护。 |
-| `copy_group_voice` | 写入 | 把一个 Vocal Group Reference 的文档化 Voice 参数和唱法复制到另一个 Group。它不会读取或更改歌手/声库身份，仍需在 SynthV 中手动选择声库。 |
+| `copy_group_voice` | 写入 | 将源组已存储的文档化 Voice 参数和唱法轴合并到目标组。目标独有唱法及源中未存储的值保持不变；不替换完整 Voice 快照，也不重置默认值。选定的源字段没有已存储值时拒绝写入。返回结果会提示：歌手/声库身份仍不可读取，需在 SynthV 中手动选择。 |
 | `apply_group_tuning` | 破坏性 | 完整预检后，在一个撤销记录中应用同一 Group 的 Voice/唱法、音符/音素及多条自动化调音；若宿主在执行期意外失败，重试前必须先在 SynthV 中撤销一次。 |
 | `delete_group_reference` | 破坏性 | 删除非主人声或乐器引用。 |
 | `import_monophonic_score` | 写入 | 通过受保护 `add_notes` 从刚检查且已确认使用权的本地 MusicXML/MIDI 单旋律声部导入最多 512 个音符；SHA-256 必须仍匹配，源速度只返回审核而不自动应用。 |

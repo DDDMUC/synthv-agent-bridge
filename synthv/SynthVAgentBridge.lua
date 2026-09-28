@@ -8023,6 +8023,16 @@ function handlers.copy_group_voice(payload)
     result.copiedVocalModeCount = #vocalModes
     result.voicebankIdentityReadable = false
     result.manualVoicebankSelectionRequired = true
+    result.manualReviewWarnings = json.array({
+        {
+            code = "VOICE_COPY_MERGE_ONLY",
+            message = "Copies only stored source parameters and Vocal Mode axes; target values absent from the source are preserved."
+        },
+        {
+            code = "MANUAL_VOICEBANK_SELECTION_REQUIRED",
+            message = "Select and review the target voicebank manually in SynthV; this action cannot read or change singer identity."
+        }
+    })
     return result
 end
 
@@ -12254,6 +12264,7 @@ PROJECT_WRITE_ACTIONS = {
     delete_track = true,
     update_group = true,
     set_group_voice = true,
+    copy_group_voice = true,
     apply_group_tuning = true,
     delete_group_reference = true,
     add_notes = true,

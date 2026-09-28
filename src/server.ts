@@ -1715,7 +1715,7 @@ export function createServer(config: BridgeConfig): McpServer {
     {
       title: "Copy SynthV Group Voice",
       description:
-        "Copy documented Group Voice parameters and Vocal Mode axes from one vocal Group Reference to another through the same guarded, one-Undo update path as set_group_voice. This does not change the singer or voice database identity; select the desired voicebank manually in SynthV first. The response states that the identity remains unreadable and requires manual review.",
+        "Merge documented Group Voice parameters and Vocal Mode axes stored on the source vocal Group Reference into the target through the same guarded, one-Undo update path as set_group_voice. Target values absent from the source are preserved, including target-only Vocal Modes and omitted axes; this is not a full Voice snapshot replacement or a reset to defaults. If the selected source fields contain no stored values, the request fails without writing. This does not read or change singer or voicebank identity; select and review the target voicebank manually in SynthV. The response includes warnings about merge semantics and manual voicebank selection.",
       inputSchema: z
         .object({
           ...copyGroupVoiceSourceShape,
